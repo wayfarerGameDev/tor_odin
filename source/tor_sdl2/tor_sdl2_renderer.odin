@@ -16,6 +16,9 @@ tor_sdl2_render_flip                                       :: sdl2.RendererFlip
 // Bound
 tor_sdl2_renderer_bound                                    : ^tor_sdl2_renderer
 
+// Viewport                                                
+TOR_SDL2_RENDERER_VIEWPORT_COUNT                           :: 8
+
 // Text
 tor_sdl2_renderer_text_tff_static_key                      :: struct 
 {
@@ -29,6 +32,7 @@ tor_sdl2_renderer_text_tff_static_value                    :: struct
     size                                                   : [2]i32
 }
 
+/* Share texture caches between all renderers */
 tor_sdl2_renderer_text_ttf_static_texture_cache            : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 
 // Instance
@@ -42,8 +46,7 @@ tor_sdl2_renderer                                          :: struct
     draw_color_sdl                                         :  sdl2.Color,
     bound_texture                                          : ^sdl2.Texture,
     bound_font                                             : ^sdl2_tff.Font,
-    viewport_screen_space_rect                             : tor_sdl2_rect,
-    viewport_world_space_rect                              : tor_sdl2_rect,
+    viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect
 }
 
 /*------------------------------------------------------------------------------
@@ -94,77 +97,49 @@ renderer_set_draw_color_hex :: proc(hex : u32, alpha : u8)
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (render space)
+TOR : SDL2->Renderer (viewport)
 ------------------------------------------------------------------------------*/
 
-renderer_set_viewport_to_screen_space :: proc()
+renderer_set_viewport_current :: proc(viewport : u8)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
     // Bind viewport
-    sdl2.RenderSetViewport(tor_sdl2_renderer_bound.renderer,&tor_sdl2_renderer_bound.viewport_screen_space_rect)
+    viewport_clamped := clamp(viewport,0,TOR_SDL2_RENDERER_VIEWPORT_COUNT - 1)
+    sdl2.RenderSetViewport(tor_sdl2_renderer_bound.renderer,&tor_sdl2_renderer_bound.viewport_rects[viewport_clamped])
 }
 
-renderer_set_viewport_screen_space_rect :: proc(rect : tor_sdl2_rect)
+renderer_set_viewport_rect :: proc(viewport : u8, rect : tor_sdl2_rect)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    tor_sdl2_renderer_bound.viewport_screen_space_rect = rect
+    // Set viewport rect
+    viewport_clamped := clamp(viewport,0,TOR_SDL2_RENDERER_VIEWPORT_COUNT - 1)
+    tor_sdl2_renderer_bound.viewport_rects[viewport_clamped] = rect
 }
 
-renderer_set_viewport_screen_space_position :: proc(position : [2]i32)
+renderer_set_viewport_position :: proc(viewport : u8, position : [2]i32)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    tor_sdl2_renderer_bound.viewport_screen_space_rect.x = position.x
-    tor_sdl2_renderer_bound.viewport_screen_space_rect.y = position.y
+    // Set viewport position
+    viewport_clamped := clamp(viewport,0,TOR_SDL2_RENDERER_VIEWPORT_COUNT - 1)
+    tor_sdl2_renderer_bound.viewport_rects[viewport_clamped].x = position.x
+    tor_sdl2_renderer_bound.viewport_rects[viewport_clamped].y = position.y
 }
 
-renderer_set_viewport_screen_space_size :: proc(size : [2]i32)
+renderer_set_viewport_size :: proc(viewport : u8, size : [2]i32)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    tor_sdl2_renderer_bound.viewport_screen_space_rect.w = size.x
-    tor_sdl2_renderer_bound.viewport_screen_space_rect.h = size.y
-}
-
-renderer_set_viewport_to_world_space :: proc()
-{
-    // Validate
-    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
-    // Bind viewport
-    sdl2.RenderSetViewport(tor_sdl2_renderer_bound.renderer,&tor_sdl2_renderer_bound.viewport_world_space_rect)
-}
-
-renderer_set_viewport_world_space_rect :: proc(rect : tor_sdl2_rect)
-{
-    // Validate
-    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
-    tor_sdl2_renderer_bound.viewport_world_space_rect = rect
-}
-
-renderer_set_viewport_world_space_position :: proc(position : [2]i32)
-{
-    // Validate
-    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
-    tor_sdl2_renderer_bound.viewport_world_space_rect.x = position.x
-    tor_sdl2_renderer_bound.viewport_world_space_rect.y = position.y
-}
-
-renderer_set_viewport_world_space_size :: proc(size : [2]i32)
-{
-    // Validate
-    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
-    tor_sdl2_renderer_bound.viewport_world_space_rect.w = size.x
-    tor_sdl2_renderer_bound.viewport_world_space_rect.h = size.y
+    // Set viewport size
+    viewport_clamped := clamp(viewport,0,TOR_SDL2_RENDERER_VIEWPORT_COUNT - 1)
+    tor_sdl2_renderer_bound.viewport_rects[viewport_clamped].w = size.x
+    tor_sdl2_renderer_bound.viewport_rects[viewport_clamped].h = size.y
 }
 
 /*------------------------------------------------------------------------------
@@ -283,13 +258,6 @@ renderer_set_to_defaults :: proc()
     // SDL
     sdl2.RenderSetScale(tor_sdl2_renderer_bound.renderer,1,1)
     sdl2.SetRenderDrawBlendMode(tor_sdl2_renderer_bound.renderer,sdl2.BlendMode.BLEND)
-
-    // Set default viewports
-    viewport_rect := tor_sdl2_rect {0,0,10,0}
-    sdl2.RenderGetViewport(tor_sdl2_renderer_bound.renderer,&viewport_rect)
-    renderer_set_viewport_screen_space_rect(viewport_rect)
-    renderer_set_viewport_world_space_rect(viewport_rect)
-    renderer_set_viewport_to_screen_space()
 }
 
 renderer_bind :: proc(renderer : ^tor_sdl2_renderer)

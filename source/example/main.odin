@@ -58,11 +58,11 @@ update :: proc()
 
 render_start :: proc()
 {
-    tor_sdl2.renderer_set_viewport_to_world_space()
-    tor_sdl2.renderer_set_viewport_world_space_position({100,100})
+    tor_sdl2.renderer_set_viewport_current(0)
+    tor_sdl2.renderer_set_viewport_position(0,{100,500})
     tor_sdl2.renderer_draw_texture(nil,&texture_destination)
     
-    tor_sdl2.renderer_set_viewport_to_screen_space()
+    tor_sdl2.renderer_set_viewport_current(1)
     tor_sdl2.renderer_draw_text_tff_static("I like to eat tacos", {0, 0})
 }
 
@@ -75,6 +75,6 @@ resized :: proc()
 {
     // apply wnidow resize to render viewports
     size := tor_sdl2.app_get_window_size()
-    tor_sdl2.renderer_set_viewport_world_space_size(size)
-    tor_sdl2.renderer_set_viewport_screen_space_size(size)
+    tor_sdl2.renderer_set_viewport_size(0,size)
+    tor_sdl2.renderer_set_viewport_size(1,size)
 }
