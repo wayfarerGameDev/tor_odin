@@ -59,7 +59,7 @@ update :: proc()
 render_start :: proc()
 {
     tor_sdl2.renderer_draw_texture(nil,&texture_destination)
-    tor_sdl2.renderer_draw_text_tff("I like to eat tacos")
+    tor_sdl2.renderer_draw_text_tff_static("I like to eat tacos", {0,0})
 }
 
 render_end :: proc()
