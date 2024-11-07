@@ -32,9 +32,6 @@ tor_sdl2_renderer_text_tff_static_value                    :: struct
     size                                                   : [2]i32
 }
 
-/* Share texture caches between all renderers */
-tor_sdl2_renderer_text_ttf_static_texture_cache            : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
-
 // Instance
 tor_sdl2_renderer                                          :: struct
 {
@@ -47,7 +44,9 @@ tor_sdl2_renderer                                          :: struct
     bound_texture                                          : ^sdl2.Texture,
     bound_font                                             : ^sdl2_tff.Font,
     viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect,
-    texture_cache                                          : map[u32] ^sdl2.Texture
+    texture_cache                                          : map[u16] ^sdl2.Texture,
+    ttf_font_cache                                         : map[u16] ^ sdl2_tff.Font,
+    ttf_text_static_texture_cache                          : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 }
 
 /*------------------------------------------------------------------------------
@@ -151,17 +150,17 @@ TOR : SDL2->Renderer (Pixel)
 TOR : SDL2->Renderer (text tff : Load)
 ------------------------------------------------------------------------------*/
 
-renderer_bind_texture :: proc(texture_id : u32)
+renderer_bind_texture :: proc(texture_id : u16)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(tor_sdl2_renderer_bound.texture_cache[texture_id] == nil, "does NOT EXIST")
+    assert(tor_sdl2_renderer_bound.texture_cache[texture_id] == nil, "texture with id does not exist")
 
     // Bind texture
     tor_sdl2_renderer_bound.bound_texture = tor_sdl2_renderer_bound.texture_cache[texture_id]
 }
 
-renderer_load_texture :: proc(file_path : cstring) -> u32
+renderer_load_texture :: proc(file_path : cstring) -> u16
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -171,14 +170,14 @@ renderer_load_texture :: proc(file_path : cstring) -> u32
     assert(texture != nil, sdl2.GetErrorString())
 
     // Add to cache
-    texture_id := (u32)(rand.float32_range(0,99999999))
+    texture_id := (u16)(rand.float32_range(0,99999999))
     tor_sdl2_renderer_bound.texture_cache[texture_id] = texture
     
     // Return
     return texture_id
 }
 
-renderer_destroy_texture :: proc(texture_id : u32)
+renderer_destroy_texture :: proc(texture_id : u16)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -193,7 +192,7 @@ renderer_destroy_texture :: proc(texture_id : u32)
     sdl2.DestroyTexture(texture)
 }
 
-renderer_query_texture_size :: proc(texture_id : u32) -> [2]i32
+renderer_query_texture_size :: proc(texture_id : u16) -> [2]i32
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -208,7 +207,7 @@ renderer_query_texture_size :: proc(texture_id : u32) -> [2]i32
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Texture)
+TOR : SDL2->Renderer (Texture : Draw)
 ------------------------------------------------------------------------------*/
 
 renderer_draw_texture :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect)
@@ -232,17 +231,51 @@ renderer_draw_texture_ex :: proc(source_rect : ^tor_sdl2_rect, destination_rect 
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (text tff : Draw)
+TOR : SDL2->Content (Font tff)
 ------------------------------------------------------------------------------*/
 
-renderer_bind_text_tff_font :: proc(font : rawptr)
+renderer_bind_text_tff_font :: proc(font_id : u16)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-    
-    // Bind font
-    tor_sdl2_renderer_bound.bound_font = (^sdl2_tff.Font)(font)
+    assert(tor_sdl2_renderer_bound.texture_cache[font_id] == nil, "font with id does not exist")
+
+    // Font
+    tor_sdl2_renderer_bound.bound_font = tor_sdl2_renderer_bound.ttf_font_cache[font_id]
 }
+
+renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u16
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    // Load font
+    font := sdl2_tff.OpenFont(file_path,font_size)
+    assert(font != nil, sdl2.GetErrorString())
+    
+    // Add to cache
+    font_id := (u16)(rand.float32_range(0,99999999))
+    tor_sdl2_renderer_bound.ttf_font_cache[font_id] = font
+        
+    // Return
+    return font_id
+}
+
+content_destroy_tff_font :: proc(font_id : u16)
+{
+    // Font
+    font := tor_sdl2_renderer_bound.ttf_font_cache[font_id]
+
+    // Remove from cache
+    tor_sdl2_renderer_bound.ttf_font_cache[font_id] = nil
+
+    // Destroy font
+    sdl2_tff.CloseFont((^sdl2_tff.Font)(font))
+}
+
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (text tff : Draw)
+------------------------------------------------------------------------------*/
 
 renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
 {
@@ -255,7 +288,7 @@ renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
     key := tor_sdl2_renderer_text_tff_static_key { text, tor_sdl2_renderer_bound.bound_font }
 
     // Texture
-    cache := tor_sdl2_renderer_text_ttf_static_texture_cache[key]
+    cache := tor_sdl2_renderer_bound.ttf_text_static_texture_cache[key]
     if (cache.texture == nil)
     {
         // Surface
@@ -263,7 +296,7 @@ renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
         texture := sdl2.CreateTextureFromSurface(tor_sdl2_renderer_bound.renderer,surface)
 
         // cache
-        tor_sdl2_renderer_text_ttf_static_texture_cache[key] = { texture, {surface.w,surface.h} }
+        tor_sdl2_renderer_bound.ttf_text_static_texture_cache[key] = { texture, {surface.w,surface.h} }
 
         // Free Surface And Texture
         sdl2.FreeSurface(surface)

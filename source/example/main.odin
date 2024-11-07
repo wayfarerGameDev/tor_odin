@@ -7,8 +7,8 @@ app                                                            : tor_sdl2.tor_sd
 renderer                                                       : tor_sdl2.tor_sdl2_renderer
 texture_destination_a                                          : tor_sdl2.tor_sdl2_rect
 texture_destination_b                                          : tor_sdl2.tor_sdl2_rect
-texture                                                        : u32
-font                                                           : rawptr
+texture                                                        : u16
+font                                                           : u16
 
 /*------------------------------------------------------------------------------
 Game
@@ -39,7 +39,7 @@ start :: proc()
     texture_destination_b = { 100, 0, texture_query_size.x, texture_query_size.y}
 
 
-    font = tor_sdl2.content_load_font_tff("content/OpenSans_Regular.ttf",16)
+    font = tor_sdl2.renderer_load_tff_font("content/OpenSans_Regular.ttf",16)
 }
 
 end :: proc()
