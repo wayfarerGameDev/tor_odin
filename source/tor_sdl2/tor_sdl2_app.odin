@@ -28,8 +28,7 @@ tor_sdl2_app :: struct
     on_start                                                : tor_sdl2_app_event,
     on_end                                                  : tor_sdl2_app_event,
     on_update                                               : tor_sdl2_app_event,
-    on_render_start                                         : tor_sdl2_app_event,
-    on_render_end                                           : tor_sdl2_app_event,
+    on_render                                               : tor_sdl2_app_event,
     on_resize                                               : tor_sdl2_app_event,
     time_performance_frequency                              : f64,
     time_delta_time_target                                  : f64,
@@ -102,7 +101,7 @@ app_set_window_restore :: proc()
 TOR : SDL2->App (Events)
 ------------------------------------------------------------------------------*/
 
-app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_event, on_update : tor_sdl2_app_event, on_render_start : tor_sdl2_app_event, on_render_end : tor_sdl2_app_event, on_resize : tor_sdl2_app_event)
+app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_event, on_update : tor_sdl2_app_event, on_render : tor_sdl2_app_event, on_resize : tor_sdl2_app_event)
 {
     // Validate
     assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
@@ -111,8 +110,7 @@ app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_ev
     tor_sdl2_app_bound.on_start = on_start;
     tor_sdl2_app_bound.on_end = on_end;
     tor_sdl2_app_bound.on_update = on_update;
-    tor_sdl2_app_bound.on_render_start = on_render_start;
-    tor_sdl2_app_bound.on_render_end = on_render_end;
+    tor_sdl2_app_bound.on_render = on_render;
     tor_sdl2_app_bound.on_resize = on_resize;
 }
 
@@ -209,9 +207,6 @@ app_run :: proc()
         // Event (On update)
         if (tor_sdl2_app_bound.on_update != nil) { tor_sdl2_app_bound.on_update() }
 
-        // Render (start)
-        if (tor_sdl2_app_bound.on_render_start != nil) { tor_sdl2_app_bound.on_render_start() }
-
         // Time (end) | Hit target framerate
         time_end = app_get_time()
 		for time_end - time_start < tor_sdl2_app_bound.time_delta_time_target{ time_end = app_get_time() }
@@ -224,7 +219,7 @@ app_run :: proc()
         }
 
         // Render (end)
-        if (tor_sdl2_app_bound.on_render_end != nil) { tor_sdl2_app_bound.on_render_end() }
+        if (tor_sdl2_app_bound.on_render != nil) { tor_sdl2_app_bound.on_render() }
     }
 
     //Shutdown state

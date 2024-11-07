@@ -218,7 +218,7 @@ renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
     }
   
     // Render
-    dest_rect := sdl2.Rect{ position.x, position.y, cache.size.x, cache.size.y };
+    dest_rect := sdl2.Rect{ position.x, position.y, cache.size.x, cache.size.y }
     sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer, cache.texture,nil,&dest_rect)
 }
 
@@ -230,11 +230,11 @@ renderer_draw_text_tff_dynamic :: proc(text : cstring, position : [2]i32)
     assert(tor_sdl2_renderer_bound.bound_font != nil, "Renderer (SDL) : Font not bound")
 
     // Texture
-    surface := sdl2_tff.RenderText_Solid(tor_sdl2_renderer_bound.bound_font,text, tor_sdl2_renderer_bound.draw_color_sdl);
-    texture := sdl2.CreateTextureFromSurface(tor_sdl2_renderer_bound.renderer,surface);
+    surface := sdl2_tff.RenderText_Solid(tor_sdl2_renderer_bound.bound_font,text, tor_sdl2_renderer_bound.draw_color_sdl)
+    texture := sdl2.CreateTextureFromSurface(tor_sdl2_renderer_bound.renderer,surface)
 
     // Render
-    dest_rect := sdl2.Rect{ position.x, position.y, surface.w, surface.h};
+    dest_rect := sdl2.Rect{ position.x, position.y, surface.w, surface.h}
     sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer, texture,nil,&dest_rect)
   
     // Free Surface And Texture
@@ -263,10 +263,10 @@ renderer_set_to_defaults :: proc()
 renderer_bind :: proc(renderer : ^tor_sdl2_renderer)
 {
     // Bind renderer
-    tor_sdl2_renderer_bound = renderer;
+    tor_sdl2_renderer_bound = renderer
 }
 
-renderer_init :: proc(sdl2_window: rawptr)
+renderer_init :: proc(sdl2_window : rawptr)
 {
      // Validate
      assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -274,35 +274,44 @@ renderer_init :: proc(sdl2_window: rawptr)
      assert(sdl2_window != nil, "Renderer (SDL) : SDL Window is undefined")
      
      // Bind window
-     tor_sdl2_renderer_bound.window = (^sdl2.Window)(sdl2_window);
+     tor_sdl2_renderer_bound.window = (^sdl2.Window)(sdl2_window)
 
      // Create renderer
      tor_sdl2_renderer_bound.renderer = sdl2.CreateRenderer(tor_sdl2_renderer_bound.window,-1,sdl2.RENDERER_ACCELERATED)
      assert(tor_sdl2_renderer_bound.renderer != nil, sdl2.GetErrorString())
 
+     // Enable batching
+     sdl2.SetHint(sdl2.HINT_RENDER_BATCHING,"1")
+
      // Default
      renderer_set_to_defaults()
 }
 
-renderer_deinit :: proc(renderer : ^tor_sdl2_renderer)
+renderer_deinit :: proc()
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
     // Cleanup Renderer
-    sdl2.DestroyRenderer(tor_sdl2_renderer_bound.renderer);
+    sdl2.DestroyRenderer(tor_sdl2_renderer_bound.renderer)
 }
 
-renderer_render :: proc (renderer : ^tor_sdl2_renderer)
+renderer_render_present :: proc ()
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
     
     // Render Present
     sdl2.SetRenderDrawColor(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.draw_color.r,tor_sdl2_renderer_bound.draw_color.g,tor_sdl2_renderer_bound.draw_color.b,tor_sdl2_renderer_bound.draw_color.a)
-    sdl2.RenderPresent(tor_sdl2_renderer_bound.renderer);
+    sdl2.RenderPresent(tor_sdl2_renderer_bound.renderer)
+}
 
+renderer_render_clear :: proc ()
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    
     // Clear
     sdl2.SetRenderDrawColor(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.clear_color.r,tor_sdl2_renderer_bound.clear_color.b,tor_sdl2_renderer_bound.clear_color.b,tor_sdl2_renderer_bound.clear_color.a)
-    sdl2.RenderClear(tor_sdl2_renderer_bound.renderer);
+    sdl2.RenderClear(tor_sdl2_renderer_bound.renderer)
 }
