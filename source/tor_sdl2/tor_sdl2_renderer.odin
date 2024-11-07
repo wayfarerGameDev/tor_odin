@@ -2,6 +2,7 @@ package tor_sdl2
 import sdl2 "vendor:sdl2"
 import sdl2_image "vendor:sdl2/image" 
 import sdl2_tff "vendor:sdl2/ttf"
+import "core:fmt"
 
 // State
 TOR_SDL2_RENDERER_STATE_NULL                               :: 0b00000000
@@ -28,6 +29,8 @@ tor_sdl2_renderer_text_tff_static_value                    :: struct
     size                                                   : [2]i32
 }
 
+tor_sdl2_renderer_text_ttf_static_texture_cache            : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
+
 // Instance
 tor_sdl2_renderer                                           :: struct
 {
@@ -39,7 +42,6 @@ tor_sdl2_renderer                                           :: struct
     draw_color_sdl                                          :  sdl2.Color,
     bound_texture                                           : ^sdl2.Texture,
     bound_font                                              : ^sdl2_tff.Font,
-    text_ttf_static_texture_cache                           : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 }
 
 /*------------------------------------------------------------------------------
@@ -160,7 +162,7 @@ renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
     key := tor_sdl2_renderer_text_tff_static_key { text, tor_sdl2_renderer_bound.bound_font }
 
     // Texture
-    cache := tor_sdl2_renderer_bound.text_ttf_static_texture_cache[key]
+    cache := tor_sdl2_renderer_text_ttf_static_texture_cache[key]
     if (cache.texture == nil)
     {
         // Surface
@@ -168,7 +170,7 @@ renderer_draw_text_tff_static :: proc(text : cstring, position : [2]i32)
         texture := sdl2.CreateTextureFromSurface(tor_sdl2_renderer_bound.renderer,surface)
 
         // cache
-        tor_sdl2_renderer_bound.text_ttf_static_texture_cache[key] = { texture, {surface.w,surface.h} }
+        tor_sdl2_renderer_text_ttf_static_texture_cache[key] = { texture, {surface.w,surface.h} }
 
         // Free Surface And Texture
         sdl2.FreeSurface(surface)
