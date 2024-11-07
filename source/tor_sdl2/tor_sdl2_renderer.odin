@@ -32,16 +32,18 @@ tor_sdl2_renderer_text_tff_static_value                    :: struct
 tor_sdl2_renderer_text_ttf_static_texture_cache            : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 
 // Instance
-tor_sdl2_renderer                                           :: struct
+tor_sdl2_renderer                                          :: struct
 {
-    state                                                   : u8,    
-    window                                                  : ^sdl2.Window,
-    renderer                                                : ^sdl2.Renderer,
-    clear_color                                             : [4]u8,
-    draw_color                                              : [4]u8,
-    draw_color_sdl                                          :  sdl2.Color,
-    bound_texture                                           : ^sdl2.Texture,
-    bound_font                                              : ^sdl2_tff.Font,
+    state                                                  : u8,    
+    window                                                 : ^sdl2.Window,
+    renderer                                               : ^sdl2.Renderer,
+    clear_color                                            : [4]u8,
+    draw_color                                             : [4]u8,
+    draw_color_sdl                                         :  sdl2.Color,
+    bound_texture                                          : ^sdl2.Texture,
+    bound_font                                             : ^sdl2_tff.Font,
+    viewport_screen_space_rect                             : tor_sdl2_rect,
+    viewport_world_space_rect                              : tor_sdl2_rect,
 }
 
 /*------------------------------------------------------------------------------
@@ -91,19 +93,83 @@ renderer_set_draw_color_hex :: proc(hex : u32, alpha : u8)
     sdl2.SetRenderDrawColor(tor_sdl2_renderer_bound.renderer,color.r,color.g,color.b,color.a)
 }
 
-renderer_set_to_defaults :: proc()
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (render space)
+------------------------------------------------------------------------------*/
+
+renderer_set_viewport_to_screen_space :: proc()
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    // Renderer
-    renderer_set_clear_color_rgba({100,149,237,255})
-    renderer_set_draw_color_rgba({255,255,255,255})
-
-    // SDL
-    sdl2.RenderSetScale(tor_sdl2_renderer_bound.renderer,1,1)
-    sdl2.SetRenderDrawBlendMode(tor_sdl2_renderer_bound.renderer,sdl2.BlendMode.BLEND)
+    // Bind viewport
+    sdl2.RenderSetViewport(tor_sdl2_renderer_bound.renderer,&tor_sdl2_renderer_bound.viewport_screen_space_rect)
 }
+
+renderer_set_viewport_screen_space_rect :: proc(rect : tor_sdl2_rect)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_screen_space_rect = rect
+}
+
+renderer_set_viewport_screen_space_position :: proc(position : [2]i32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_screen_space_rect.x = position.x
+    tor_sdl2_renderer_bound.viewport_screen_space_rect.y = position.y
+}
+
+renderer_set_viewport_screen_space_size :: proc(size : [2]i32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_screen_space_rect.w = size.x
+    tor_sdl2_renderer_bound.viewport_screen_space_rect.h = size.y
+}
+
+renderer_set_viewport_to_world_space :: proc()
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    // Bind viewport
+    sdl2.RenderSetViewport(tor_sdl2_renderer_bound.renderer,&tor_sdl2_renderer_bound.viewport_world_space_rect)
+}
+
+renderer_set_viewport_world_space_rect :: proc(rect : tor_sdl2_rect)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_world_space_rect = rect
+}
+
+renderer_set_viewport_world_space_position :: proc(position : [2]i32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_world_space_rect.x = position.x
+    tor_sdl2_renderer_bound.viewport_world_space_rect.y = position.y
+}
+
+renderer_set_viewport_world_space_size :: proc(size : [2]i32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    tor_sdl2_renderer_bound.viewport_world_space_rect.w = size.x
+    tor_sdl2_renderer_bound.viewport_world_space_rect.h = size.y
+}
+
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (Pixel)
+------------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (Texture)
@@ -193,7 +259,7 @@ renderer_draw_text_tff_dynamic :: proc(text : cstring, position : [2]i32)
     texture := sdl2.CreateTextureFromSurface(tor_sdl2_renderer_bound.renderer,surface);
 
     // Render
-    dest_rect := sdl2.Rect{position.x,position.y, surface.w, surface.h};
+    dest_rect := sdl2.Rect{ position.x, position.y, surface.w, surface.h};
     sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer, texture,nil,&dest_rect)
   
     // Free Surface And Texture
@@ -204,6 +270,27 @@ renderer_draw_text_tff_dynamic :: proc(text : cstring, position : [2]i32)
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (Main)
 ------------------------------------------------------------------------------*/
+
+renderer_set_to_defaults :: proc()
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    // Renderer
+    renderer_set_clear_color_rgba({100,149,237,255})
+    renderer_set_draw_color_rgba({255,255,255,255})
+
+    // SDL
+    sdl2.RenderSetScale(tor_sdl2_renderer_bound.renderer,1,1)
+    sdl2.SetRenderDrawBlendMode(tor_sdl2_renderer_bound.renderer,sdl2.BlendMode.BLEND)
+
+    // Set default viewports
+    viewport_rect := tor_sdl2_rect {0,0,10,0}
+    sdl2.RenderGetViewport(tor_sdl2_renderer_bound.renderer,&viewport_rect)
+    renderer_set_viewport_screen_space_rect(viewport_rect)
+    renderer_set_viewport_world_space_rect(viewport_rect)
+    renderer_set_viewport_to_screen_space()
+}
 
 renderer_bind :: proc(renderer : ^tor_sdl2_renderer)
 {
@@ -242,7 +329,7 @@ renderer_render :: proc (renderer : ^tor_sdl2_renderer)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
+    
     // Render Present
     sdl2.SetRenderDrawColor(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.draw_color.r,tor_sdl2_renderer_bound.draw_color.g,tor_sdl2_renderer_bound.draw_color.b,tor_sdl2_renderer_bound.draw_color.a)
     sdl2.RenderPresent(tor_sdl2_renderer_bound.renderer);

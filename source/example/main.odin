@@ -1,6 +1,5 @@
 package main
 
-import "core:fmt"
 import "../tor_sdl2"
 
 app                                                            : tor_sdl2.tor_sdl2_app
@@ -18,6 +17,7 @@ main :: proc()
     // Create app
     tor_sdl2.app_bind(&app)
     tor_sdl2.app_init()
+    tor_sdl2.app_set_window_resizable(true)
     tor_sdl2.app_bind_events(start,end,update,render_start,render_end,resized)
     tor_sdl2.app_run()
 }
@@ -58,8 +58,12 @@ update :: proc()
 
 render_start :: proc()
 {
+    tor_sdl2.renderer_set_viewport_to_world_space()
+    tor_sdl2.renderer_set_viewport_world_space_position({100,100})
     tor_sdl2.renderer_draw_texture(nil,&texture_destination)
-    tor_sdl2.renderer_draw_text_tff_static("I like to eat tacos", {0,0})
+    
+    tor_sdl2.renderer_set_viewport_to_screen_space()
+    tor_sdl2.renderer_draw_text_tff_static("I like to eat tacos", {0, 0})
 }
 
 render_end :: proc()
@@ -69,4 +73,8 @@ render_end :: proc()
 
 resized :: proc()
 {
+    // apply wnidow resize to render viewports
+    size := tor_sdl2.app_get_window_size()
+    tor_sdl2.renderer_set_viewport_world_space_size(size)
+    tor_sdl2.renderer_set_viewport_screen_space_size(size)
 }

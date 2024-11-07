@@ -42,16 +42,15 @@ tor_sdl2_app :: struct
 TOR : SDL2->App (Window)
 ------------------------------------------------------------------------------*/
 
-app_get_window_size :: proc() -> (i32,i32)
+app_get_window_size :: proc() -> ([2]i32)
 {
     // Validate
     assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
     
     // Get size
-    x : ^i32
-    y : ^i32
-    sdl2.GetWindowSize(tor_sdl2_app_bound.window,x,y)
-    return x^ ,y^
+    x, y : i32
+    sdl2.GetWindowSize(tor_sdl2_app_bound.window,&x,&y)
+    return { x ,y }
 }
 
 app_set_window_title :: proc(title:string)
