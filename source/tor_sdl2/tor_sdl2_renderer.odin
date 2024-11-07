@@ -2,7 +2,7 @@ package tor_sdl2
 import sdl2 "vendor:sdl2"
 import sdl2_image "vendor:sdl2/image" 
 import sdl2_tff "vendor:sdl2/ttf"
-import "core:fmt"
+import "core:math/rand"
 
 // State
 TOR_SDL2_RENDERER_STATE_NULL                               :: 0b00000000
@@ -46,7 +46,8 @@ tor_sdl2_renderer                                          :: struct
     draw_color_sdl                                         :  sdl2.Color,
     bound_texture                                          : ^sdl2.Texture,
     bound_font                                             : ^sdl2_tff.Font,
-    viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect
+    viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect,
+    texture_cache                                          : map[u32] ^sdl2.Texture
 }
 
 /*------------------------------------------------------------------------------
@@ -147,17 +148,68 @@ TOR : SDL2->Renderer (Pixel)
 ------------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Texture)
+TOR : SDL2->Renderer (text tff : Load)
 ------------------------------------------------------------------------------*/
 
-renderer_bind_texture :: proc(texture : rawptr)
+renderer_bind_texture :: proc(texture_id : u32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.texture_cache[texture_id] == nil, "does NOT EXIST")
+
+    // Bind texture
+    tor_sdl2_renderer_bound.bound_texture = tor_sdl2_renderer_bound.texture_cache[texture_id]
+}
+
+renderer_load_texture :: proc(file_path : cstring) -> u32
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    // Bind texture
-    tor_sdl2_renderer_bound.bound_texture = (^sdl2.Texture)(texture)
+    // Load texture
+    texture := sdl2_image.LoadTexture(tor_sdl2_renderer_bound.renderer, file_path)
+    assert(texture != nil, sdl2.GetErrorString())
+
+    // Add to cache
+    texture_id := (u32)(rand.float32_range(0,99999999))
+    tor_sdl2_renderer_bound.texture_cache[texture_id] = texture
+    
+    // Return
+    return texture_id
 }
+
+renderer_destroy_texture :: proc(texture_id : u32)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    // Texture
+    texture := tor_sdl2_renderer_bound.texture_cache[texture_id]
+    
+    // Remove from cache
+    tor_sdl2_renderer_bound.texture_cache[texture_id] = nil
+    
+    // Destroy texture
+    sdl2.DestroyTexture(texture)
+}
+
+renderer_query_texture_size :: proc(texture_id : u32) -> [2]i32
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+
+    // Texture
+    texture := tor_sdl2_renderer_bound.texture_cache[texture_id]
+
+    // Return size
+    rect := sdl2.Rect {}
+    sdl2.QueryTexture(texture,nil,nil,&rect.w,&rect.h)
+    return { rect.w, rect.h }
+}
+
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (Texture)
+------------------------------------------------------------------------------*/
 
 renderer_draw_texture :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect)
 {   
@@ -180,7 +232,7 @@ renderer_draw_texture_ex :: proc(source_rect : ^tor_sdl2_rect, destination_rect 
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (text tff)
+TOR : SDL2->Renderer (text tff : Draw)
 ------------------------------------------------------------------------------*/
 
 renderer_bind_text_tff_font :: proc(font : rawptr)

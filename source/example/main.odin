@@ -5,8 +5,9 @@ import "../tor_sdl2"
 
 app                                                            : tor_sdl2.tor_sdl2_app
 renderer                                                       : tor_sdl2.tor_sdl2_renderer
-texture_destination                                            : tor_sdl2.tor_sdl2_rect
-texture                                                        : rawptr
+texture_destination_a                                          : tor_sdl2.tor_sdl2_rect
+texture_destination_b                                          : tor_sdl2.tor_sdl2_rect
+texture                                                        : u32
 font                                                           : rawptr
 
 /*------------------------------------------------------------------------------
@@ -31,11 +32,13 @@ start :: proc()
     tor_sdl2.renderer_init(app.window)
     tor_sdl2.renderer_set_clear_color_rgba({0,0,0,0})
 
-    // Load content
-    tor_sdl2.content_bind_renderer(renderer.renderer)
-    texture = tor_sdl2.content_load_texture("content/chicken.png")
-    texture_query_size := tor_sdl2.content_query_texture_size(texture)
-    texture_destination = { 0, 0, texture_query_size.x, texture_query_size.y}
+    // Load texture
+    texture = tor_sdl2.renderer_load_texture("content/chicken.png")
+    texture_query_size := tor_sdl2.renderer_query_texture_size(texture)
+    texture_destination_a = { 0, 0, texture_query_size.x, texture_query_size.y}
+    texture_destination_b = { 100, 0, texture_query_size.x, texture_query_size.y}
+
+
     font = tor_sdl2.content_load_font_tff("content/OpenSans_Regular.ttf",16)
 }
 
@@ -45,7 +48,7 @@ end :: proc()
     tor_sdl2.renderer_deinit()
 
     // Destroy content
-    tor_sdl2.content_destroy_texture(texture)
+    tor_sdl2.renderer_destroy_texture(texture)
 }
 
 update :: proc()
@@ -63,8 +66,9 @@ render :: proc()
    
     // Entities
     tor_sdl2.renderer_bind_texture(texture)
-    tor_sdl2.renderer_draw_texture(nil,&texture_destination)
-    
+    tor_sdl2.renderer_draw_texture(nil,&texture_destination_a)
+    tor_sdl2.renderer_draw_texture(nil,&texture_destination_b)
+
     // Screenspace
     tor_sdl2.renderer_set_viewport_current(1)
     
