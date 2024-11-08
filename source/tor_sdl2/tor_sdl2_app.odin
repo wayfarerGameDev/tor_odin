@@ -30,9 +30,7 @@ tor_sdl2_app :: struct
     on_update                                               : tor_sdl2_app_event,
     on_render                                               : tor_sdl2_app_event,
     on_resize                                               : tor_sdl2_app_event,
-    time_performance_frequency                              : f64,
-    time_delta_time_target                                  : f64,
-    time_fps_target                                         : f64,
+    time_delta_time                                         : f64,
     time_fps                                                : f64,
     time_fps_as_string                                      : string
 }
@@ -115,30 +113,6 @@ app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_ev
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->App (Time)
-------------------------------------------------------------------------------*/
-
-app_set_time_fps_target :: proc( fps : f64)
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Set fps target
-    tor_sdl2_app_bound.time_fps_target = fps
-    tor_sdl2_app_bound.time_delta_time_target = f64(1000) / fps
-}
-
-app_get_time :: proc() -> f64
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Return time
-	return f64(sdl2.GetPerformanceCounter()) * 1000 / tor_sdl2_app_bound.time_performance_frequency
-}
-
-
-/*------------------------------------------------------------------------------
 TOR : SDL2->App (Main)
 ------------------------------------------------------------------------------*/
 
@@ -157,9 +131,6 @@ app_init :: proc()
     assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
     assert(tor_sdl2_app_bound.state == TOR_SDL2_APP_STATE_NULL, "App (SDL) : Already initalized")
 
-    // Get performance frequency
-    tor_sdl2_app_bound.time_performance_frequency = f64(sdl2.GetPerformanceFrequency())
-
     // Init state | SDL
     tor_sdl2_app_bound.state = TOR_SDL2_APP_STATE_INIT
 	assert(sdl2.Init(sdl2.INIT_EVERYTHING) == 0, sdl2.GetErrorString())
@@ -170,9 +141,6 @@ app_init :: proc()
 
     // Init sdl2 tff
     sdl2_tff.Init()
-
-    // Set default fps
-    app_set_time_fps_target(60)
 }
 
 app_run :: proc()
@@ -181,8 +149,10 @@ app_run :: proc()
     tor_sdl2_app_bound.state = TOR_SDL2_APP_STATE_RUNNING
 
     // Time
-    time_start : f64
-	time_end : f64
+    time_current := (f64)(sdl2.GetPerformanceCounter())
+	time_previous := time_current
+    time_fps_target := 12000
+    target_frame_time := 1000.0 / (f64)(time_fps_target)
 
     // Event (on start)
     if (tor_sdl2_app_bound.on_start != nil) { tor_sdl2_app_bound.on_start() }
@@ -192,7 +162,14 @@ app_run :: proc()
     for is_runing
     {
         // Time (start)
-        time_start = app_get_time()
+        {
+            // Get previous and current time
+            time_previous = time_current;
+            time_current = (f64)(sdl2.GetPerformanceCounter())
+
+            // Get delta time
+            tor_sdl2_app_bound.time_delta_time = f64((time_current - time_previous) / (f64)(sdl2.GetPerformanceFrequency()))
+        }
 
         // SDL Event Loop
         {
@@ -204,22 +181,25 @@ app_run :: proc()
             }
         }
 
-        // Event (On update)
-        if (tor_sdl2_app_bound.on_update != nil) { tor_sdl2_app_bound.on_update() }
-
-        // Time (end) | Hit target framerate
-        time_end = app_get_time()
-		for time_end - time_start < tor_sdl2_app_bound.time_delta_time_target{ time_end = app_get_time() }
-    
-        // Time (fps)
-        tor_sdl2_app_bound.time_fps = 1000 / (time_end - time_start)
+        // Update | Render
         {
-            buf: [8]byte
-            tor_sdl2_app_bound.time_fps_as_string = strconv.append_float(buf[:], tor_sdl2_app_bound.time_fps, 'f', 2, 64)
+            if (tor_sdl2_app_bound.on_update != nil) { tor_sdl2_app_bound.on_update() }
+            if (tor_sdl2_app_bound.on_render != nil) { tor_sdl2_app_bound.on_render() }
         }
 
-        // Render (end)
-        if (tor_sdl2_app_bound.on_render != nil) { tor_sdl2_app_bound.on_render() }
+        // Time (end)
+        {
+            // Calculate time taken for this frame
+            frame_time := f64((sdl2.GetPerformanceCounter() - (u64)(time_previous)) * 1000) / (f64)(sdl2.GetPerformanceFrequency())
+
+            // If the frame took too long (greater than target), skip delay
+            if (frame_time < target_frame_time)
+            {
+                // Delay the rest of the frame to limit the FPS
+                delay_time := target_frame_time - frame_time
+                sdl2.Delay(u32(delay_time))  // SDL_Delay expects milliseconds
+            }
+        }
     }
 
     //Shutdown state

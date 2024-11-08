@@ -161,7 +161,7 @@ renderer_bind_texture :: proc(texture_id : u16)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(tor_sdl2_renderer_bound.texture_cache[texture_id] == nil, "texture with id does not exist")
+    assert(tor_sdl2_renderer_bound.texture_cache[texture_id] != nil, "texture with id does not exist")
 
     // Bind texture
     tor_sdl2_renderer_bound.bound_texture = tor_sdl2_renderer_bound.texture_cache[texture_id]
@@ -284,6 +284,18 @@ renderer_draw_texture_atlas :: proc(source_rect : [4]i32, destination_rect : [4]
     sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,&tor_sdl2_renderer_draw_source_rect,&tor_sdl2_renderer_draw_destination_rect)
 }
 
+renderer_draw_texture_atlas_f64 :: proc(source_rect : [4]f64, destination_rect : [4]f64)
+{   
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+ 
+    // Render
+    tor_sdl2_renderer_draw_destination_rect = sdl2.Rect {(i32)(destination_rect.x),(i32)(destination_rect.y),(i32)(destination_rect.z),(i32)(destination_rect.w)}
+    tor_sdl2_renderer_draw_source_rect = sdl2.Rect {(i32)(source_rect.x),(i32)(source_rect.y),(i32)(source_rect.z),(i32)(source_rect.w)}
+    sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,&tor_sdl2_renderer_draw_source_rect,&tor_sdl2_renderer_draw_destination_rect)
+}
+
 /*------------------------------------------------------------------------------
 TOR : SDL2->Content (Font tff)
 ------------------------------------------------------------------------------*/
@@ -292,7 +304,7 @@ renderer_bind_text_tff_font :: proc(font_id : u16)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(tor_sdl2_renderer_bound.texture_cache[font_id] == nil, "font with id does not exist")
+    assert(tor_sdl2_renderer_bound.ttf_font_cache[font_id] != nil, "font with id does not exist")
 
     // Font
     tor_sdl2_renderer_bound.bound_font = tor_sdl2_renderer_bound.ttf_font_cache[font_id]

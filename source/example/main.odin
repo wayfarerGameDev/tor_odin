@@ -9,7 +9,7 @@ ENTITY_COUNT                                                   :: 50000
 app                                                            : tor_sdl2.tor_sdl2_app
 renderer                                                       : tor_sdl2.tor_sdl2_renderer
 texture_destinations                                           : [ENTITY_COUNT]tor_sdl2.tor_sdl2_rect
-entity_destinations                                            : [ENTITY_COUNT * 4]i32
+entity_destinations                                            : [ENTITY_COUNT * 4]f64
 texture                                                        : u16
 font                                                           : u16
 
@@ -24,7 +24,6 @@ main :: proc()
     tor_sdl2.app_init()
     tor_sdl2.app_set_window_resizable(true)
     tor_sdl2.app_bind_events(start,end,update,render,resized)
-    tor_sdl2.app_set_time_fps_target(99999);
     tor_sdl2.app_run()
 }
 
@@ -45,10 +44,10 @@ start :: proc()
         rand_x := (i32)(rand.float32_range(50,1204))
         rand_y := (i32)(rand.float32_range(50,1204))
         texture_destinations[i] = { (i32)(rand.float32_range(50,1204)), (i32)(rand.float32_range(50,660)), texture_query_size.x, texture_query_size.y}
-        entity_destinations[i * 4] = rand_x
-        entity_destinations[i * 4 + 1] = rand_y
-        entity_destinations[i * 4 + 2] = texture_query_size.x
-        entity_destinations[i * 4 + 3] = texture_query_size.y
+        entity_destinations[i * 4] = (f64)(rand_x)
+        entity_destinations[i * 4 + 1] = (f64)(rand_y)
+        entity_destinations[i * 4 + 2] = (f64)(texture_query_size.x)
+        entity_destinations[i * 4 + 3] = (f64)(texture_query_size.y)
     }
 
     font = tor_sdl2.renderer_load_tff_font("content/OpenSans_Regular.ttf",16)
@@ -65,9 +64,13 @@ end :: proc()
 
 update :: proc()
 {
-    tor_sdl2.app_set_window_title(app.time_fps_as_string)
-
     fmt.printfln(app.time_fps_as_string)
+
+    // Entities
+    for i:= 0; i < ENTITY_COUNT - 1; i+=1
+    {
+        entity_destinations[i * 4] += app.time_delta_time * 100
+    }
 }
 
 render :: proc()
@@ -81,7 +84,7 @@ render :: proc()
     for i:= 0; i < ENTITY_COUNT - 1; i+=1
     {
         // tor_sdl2.renderer_draw_texture_atlas_sdl2(nil,&texture_destinations[i])
-        tor_sdl2.renderer_draw_texture_atlas( {0,0,20,20}, {entity_destinations[i * 4],entity_destinations[i * 4 + 1],entity_destinations[i * 4 + 2],entity_destinations[i * 4 + 3]})
+        tor_sdl2.renderer_draw_texture_atlas_f64( {0,0,20,20}, {entity_destinations[i * 4],entity_destinations[i * 4 + 1],entity_destinations[i * 4 + 2],entity_destinations[i * 4 + 3]})
     }
 
     // Screenspace
