@@ -1,12 +1,15 @@
 package main
 
 import "core:fmt"
+import "core:math/rand"
 import "../tor_sdl2"
+
+ENTITY_COUNT                                                   :: 50000
 
 app                                                            : tor_sdl2.tor_sdl2_app
 renderer                                                       : tor_sdl2.tor_sdl2_renderer
-texture_destination_a                                          : tor_sdl2.tor_sdl2_rect
-texture_destination_b                                          : tor_sdl2.tor_sdl2_rect
+texture_destinations                                           : [ENTITY_COUNT]tor_sdl2.tor_sdl2_rect
+entity_destinations                                            : [ENTITY_COUNT * 4]i32
 texture                                                        : u16
 font                                                           : u16
 
@@ -35,9 +38,18 @@ start :: proc()
     // Load texture
     texture = tor_sdl2.renderer_load_texture("content/chicken.png")
     texture_query_size := tor_sdl2.renderer_query_texture_size(texture)
-    texture_destination_a = { 0, 0, texture_query_size.x, texture_query_size.y}
-    texture_destination_b = { 100, 0, texture_query_size.x, texture_query_size.y}
 
+    // Entities
+    for i:= 0; i < ENTITY_COUNT - 1; i+=1
+    {
+        rand_x := (i32)(rand.float32_range(50,1204))
+        rand_y := (i32)(rand.float32_range(50,1204))
+        texture_destinations[i] = { (i32)(rand.float32_range(50,1204)), (i32)(rand.float32_range(50,660)), texture_query_size.x, texture_query_size.y}
+        entity_destinations[i * 4] = rand_x
+        entity_destinations[i * 4 + 1] = rand_y
+        entity_destinations[i * 4 + 2] = texture_query_size.x
+        entity_destinations[i * 4 + 3] = texture_query_size.y
+    }
 
     font = tor_sdl2.renderer_load_tff_font("content/OpenSans_Regular.ttf",16)
 }
@@ -62,12 +74,15 @@ render :: proc()
 {
     // World space
     tor_sdl2.renderer_set_viewport_current(0)
-    tor_sdl2.renderer_set_viewport_position(0,{100,500})
+    tor_sdl2.renderer_set_viewport_position(0,{0,0})
    
     // Entities
     tor_sdl2.renderer_bind_texture(texture)
-    tor_sdl2.renderer_draw_texture(nil,&texture_destination_a)
-    tor_sdl2.renderer_draw_texture(nil,&texture_destination_b)
+    for i:= 0; i < ENTITY_COUNT - 1; i+=1
+    {
+        // tor_sdl2.renderer_draw_texture_atlas_sdl2(nil,&texture_destinations[i])
+        tor_sdl2.renderer_draw_texture_atlas( {0,0,20,20}, {entity_destinations[i * 4],entity_destinations[i * 4 + 1],entity_destinations[i * 4 + 2],entity_destinations[i * 4 + 3]})
+    }
 
     // Screenspace
     tor_sdl2.renderer_set_viewport_current(1)

@@ -49,6 +49,11 @@ tor_sdl2_renderer                                          :: struct
     ttf_text_static_texture_cache                          : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 }
 
+// Draw
+tor_sdl2_renderer_draw_destination_rect                    : sdl2.Rect
+tor_sdl2_renderer_draw_source_rect                         : sdl2.Rect
+
+
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (Color)
 ------------------------------------------------------------------------------*/
@@ -146,6 +151,8 @@ renderer_set_viewport_size :: proc(viewport : u8, size : [2]i32)
 TOR : SDL2->Renderer (Pixel)
 ------------------------------------------------------------------------------*/
 
+
+
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (text tff : Load)
 ------------------------------------------------------------------------------*/
@@ -207,10 +214,30 @@ renderer_query_texture_size :: proc(texture_id : u16) -> [2]i32
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Texture : Draw)
+TOR : SDL2->Renderer (Texture : Draw SDL)
 ------------------------------------------------------------------------------*/
 
-renderer_draw_texture :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect)
+renderer_draw_texture_sdl2 :: proc(destination_rect : ^tor_sdl2_rect)
+{
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+ 
+    // Render
+    sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,nil,destination_rect)
+}
+
+renderer_draw_texture_sdl2_ex :: proc(destination_rect : ^tor_sdl2_rect, angle: f64, point : ^tor_sdl2_point, render_flip : tor_sdl2_render_flip)
+{   
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+ 
+    // Render
+    sdl2.RenderCopyEx(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,nil,destination_rect,angle,point,render_flip)
+}
+
+renderer_draw_texture_atlas_sdl2 :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect)
 {   
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -220,7 +247,7 @@ renderer_draw_texture :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^
     sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,source_rect,destination_rect)
 }
 
-renderer_draw_texture_ex :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect, angle: f64, point : ^tor_sdl2_point, render_flip : tor_sdl2_render_flip)
+renderer_draw_texture_atlas_sdl2_ex :: proc(source_rect : ^tor_sdl2_rect, destination_rect : ^tor_sdl2_rect, angle: f64, point : ^tor_sdl2_point, render_flip : tor_sdl2_render_flip)
 {   
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -228,6 +255,33 @@ renderer_draw_texture_ex :: proc(source_rect : ^tor_sdl2_rect, destination_rect 
  
     // Render
     sdl2.RenderCopyEx(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,source_rect,destination_rect,angle,point,render_flip)
+}
+
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (Texture : Draw)
+------------------------------------------------------------------------------*/
+
+renderer_draw_texture :: proc(destination_rect : [4]i32)
+{   
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+ 
+    // Render
+    tor_sdl2_renderer_draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
+    sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,nil,&tor_sdl2_renderer_draw_destination_rect)
+}
+
+renderer_draw_texture_atlas :: proc(source_rect : [4]i32, destination_rect : [4]i32)
+{   
+    // Validate
+    assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(tor_sdl2_renderer_bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+ 
+    // Render
+    tor_sdl2_renderer_draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
+    tor_sdl2_renderer_draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
+    sdl2.RenderCopy(tor_sdl2_renderer_bound.renderer,tor_sdl2_renderer_bound.bound_texture,&tor_sdl2_renderer_draw_source_rect,&tor_sdl2_renderer_draw_destination_rect)
 }
 
 /*------------------------------------------------------------------------------
