@@ -8,10 +8,9 @@ ENTITY_COUNT                                                   :: 50000
 
 app                                                            : tor_sdl2.tor_sdl2_app
 renderer                                                       : tor_sdl2.tor_sdl2_renderer
-texture_destinations                                           : [ENTITY_COUNT]tor_sdl2.tor_sdl2_rect
 entity_destinations                                            : [ENTITY_COUNT * 4]f64
-texture                                                        : u16
-font                                                           : u16
+texture                                                        : u8
+font                                                           : u8
 
 /*------------------------------------------------------------------------------
 Game
@@ -23,7 +22,7 @@ main :: proc()
     tor_sdl2.app_bind(&app)
     tor_sdl2.app_init()
     tor_sdl2.app_set_window_resizable(true)
-    tor_sdl2.app_bind_events(start,end,update,render,resized)
+    tor_sdl2.app_bind_events(start,end,update_fixed,update,render,resized)
     tor_sdl2.app_run()
 }
 
@@ -43,7 +42,6 @@ start :: proc()
     {
         rand_x := (i32)(rand.float32_range(50,1204))
         rand_y := (i32)(rand.float32_range(50,1204))
-        texture_destinations[i] = { (i32)(rand.float32_range(50,1204)), (i32)(rand.float32_range(50,660)), texture_query_size.x, texture_query_size.y}
         entity_destinations[i * 4] = (f64)(rand_x)
         entity_destinations[i * 4 + 1] = (f64)(rand_y)
         entity_destinations[i * 4 + 2] = (f64)(texture_query_size.x)
@@ -62,15 +60,20 @@ end :: proc()
     tor_sdl2.renderer_destroy_texture(texture)
 }
 
-update :: proc()
-{
-    fmt.printfln(app.time_fps_as_string)
+update_fixed :: proc(delta_time_fixed : f64)
+{ 
+    fmt.printfln("hit")
 
     // Entities
     for i:= 0; i < ENTITY_COUNT - 1; i+=1
     {
-        entity_destinations[i * 4] += app.time_delta_time * 100
+        entity_destinations[i * 4] = 0
     }
+}
+
+update :: proc(delta_time : f64)
+{
+    fmt.printfln(app.time_fps_as_string)
 }
 
 render :: proc()

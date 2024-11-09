@@ -44,8 +44,8 @@ tor_sdl2_renderer                                          :: struct
     bound_texture                                          : ^sdl2.Texture,
     bound_font                                             : ^sdl2_tff.Font,
     viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect,
-    texture_cache                                          : map[u16] ^sdl2.Texture,
-    ttf_font_cache                                         : map[u16] ^ sdl2_tff.Font,
+    texture_cache                                          : map[u8] ^sdl2.Texture,
+    ttf_font_cache                                         : map[u8] ^ sdl2_tff.Font,
     ttf_text_static_texture_cache                          : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 }
 
@@ -157,7 +157,7 @@ TOR : SDL2->Renderer (Pixel)
 TOR : SDL2->Renderer (text tff : Load)
 ------------------------------------------------------------------------------*/
 
-renderer_bind_texture :: proc(texture_id : u16)
+renderer_bind_texture :: proc(texture_id : u8)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -167,24 +167,36 @@ renderer_bind_texture :: proc(texture_id : u16)
     tor_sdl2_renderer_bound.bound_texture = tor_sdl2_renderer_bound.texture_cache[texture_id]
 }
 
-renderer_load_texture :: proc(file_path : cstring) -> u16
+renderer_load_texture :: proc(file_path : cstring) -> u8
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
+ 
     // Load texture
-    texture := sdl2_image.LoadTexture(tor_sdl2_renderer_bound.renderer, file_path)
-    assert(texture != nil, sdl2.GetErrorString())
+    texture_id := u8(0)
+    for i := 1; i < 255; i+=1
+    {
+        if (tor_sdl2_renderer_bound.texture_cache[u8(i)] == nil)
+        {
+            texture_id = u8(rand.float32_range(1,255))
+            
+             // Load texture
+            texture := sdl2_image.LoadTexture(tor_sdl2_renderer_bound.renderer, file_path)
+            assert(texture != nil, sdl2.GetErrorString())
 
-    // Add to cache
-    texture_id := (u16)(rand.float32_range(0,99999999))
-    tor_sdl2_renderer_bound.texture_cache[texture_id] = texture
+            // Add to cache
+            tor_sdl2_renderer_bound.texture_cache[texture_id] = texture
+            
+            // Return
+            return texture_id
+        }
+    }
     
     // Return
-    return texture_id
+    return 0
 }
 
-renderer_destroy_texture :: proc(texture_id : u16)
+renderer_destroy_texture :: proc(texture_id : u8)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -199,7 +211,7 @@ renderer_destroy_texture :: proc(texture_id : u16)
     sdl2.DestroyTexture(texture)
 }
 
-renderer_query_texture_size :: proc(texture_id : u16) -> [2]i32
+renderer_query_texture_size :: proc(texture_id : u8) -> [2]i32
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -300,7 +312,7 @@ renderer_draw_texture_atlas_f64 :: proc(source_rect : [4]f64, destination_rect :
 TOR : SDL2->Content (Font tff)
 ------------------------------------------------------------------------------*/
 
-renderer_bind_text_tff_font :: proc(font_id : u16)
+renderer_bind_text_tff_font :: proc(font_id : u8)
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -310,24 +322,36 @@ renderer_bind_text_tff_font :: proc(font_id : u16)
     tor_sdl2_renderer_bound.bound_font = tor_sdl2_renderer_bound.ttf_font_cache[font_id]
 }
 
-renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u16
+renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u8
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-
-    // Load font
-    font := sdl2_tff.OpenFont(file_path,font_size)
-    assert(font != nil, sdl2.GetErrorString())
     
-    // Add to cache
-    font_id := (u16)(rand.float32_range(0,99999999))
-    tor_sdl2_renderer_bound.ttf_font_cache[font_id] = font
+    // Load font
+    font_id := u8(0)
+    for i := 1; i < 255; i+=1
+    {
+        if (tor_sdl2_renderer_bound.ttf_font_cache[u8(i)] == nil)
+        {
+            font_id = u8(rand.float32_range(1,255))
+            
+             // Load font
+            font := sdl2_tff.OpenFont(file_path,font_size)
+            assert(font != nil, sdl2.GetErrorString())
+
+            // Add to cache
+            tor_sdl2_renderer_bound.ttf_font_cache[font_id] = font
+            
+            // Return
+            return font_id
+        }
+    }
         
     // Return
-    return font_id
+    return 0
 }
 
-content_destroy_tff_font :: proc(font_id : u16)
+content_destroy_tff_font :: proc(font_id : u8)
 {
     // Font
     font := tor_sdl2_renderer_bound.ttf_font_cache[font_id]

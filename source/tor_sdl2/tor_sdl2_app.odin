@@ -16,6 +16,7 @@ TOR_SDL2_APP_WINDOW_TITLE_DEFAULT                           : cstring : "Tor (SD
 
 // Event
 tor_sdl2_app_event :: proc()
+tor_sdl2_app_timed_event :: proc(delta_time : f64)
 
 // Bound
 tor_sdl2_app_bound                                          : ^tor_sdl2_app
@@ -27,10 +28,14 @@ tor_sdl2_app :: struct
     window                                                  : ^sdl2.Window,  
     on_start                                                : tor_sdl2_app_event,
     on_end                                                  : tor_sdl2_app_event,
-    on_update                                               : tor_sdl2_app_event,
+    on_update_fixed                                         : tor_sdl2_app_timed_event,
+    on_update                                               : tor_sdl2_app_timed_event,
     on_render                                               : tor_sdl2_app_event,
     on_resize                                               : tor_sdl2_app_event,
+    time_delta_time_fixed                                   : f64,
     time_delta_time                                         : f64,
+    time_fps_target_fixed                                   : f64,
+    time_fps_target                                         : f64,
     time_fps                                                : f64,
     time_fps_as_string                                      : string
 }
@@ -99,7 +104,7 @@ app_set_window_restore :: proc()
 TOR : SDL2->App (Events)
 ------------------------------------------------------------------------------*/
 
-app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_event, on_update : tor_sdl2_app_event, on_render : tor_sdl2_app_event, on_resize : tor_sdl2_app_event)
+app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_event, on_update_fixed : tor_sdl2_app_timed_event, on_update : tor_sdl2_app_timed_event, on_render : tor_sdl2_app_event, on_resize : tor_sdl2_app_event)
 {
     // Validate
     assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
@@ -107,6 +112,7 @@ app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_ev
     // Bind events
     tor_sdl2_app_bound.on_start = on_start;
     tor_sdl2_app_bound.on_end = on_end;
+    tor_sdl2_app_bound.on_update_fixed = on_update_fixed;
     tor_sdl2_app_bound.on_update = on_update;
     tor_sdl2_app_bound.on_render = on_render;
     tor_sdl2_app_bound.on_resize = on_resize;
@@ -139,6 +145,10 @@ app_init :: proc()
     tor_sdl2_app_bound.window = sdl2.CreateWindow(TOR_SDL2_APP_WINDOW_TITLE_DEFAULT, sdl2.WINDOWPOS_CENTERED,sdl2.WINDOWPOS_CENTERED,TOR_SDL2_APP_WINDOW_WIDTH_DEFAULT,TOR_SDL2_APP_WINDOW_HEIGHT_DEFAULT,sdl2.WINDOW_SHOWN)
     assert(tor_sdl2_app_bound.window != nil, sdl2.GetErrorString())
 
+    // Default fps target
+    tor_sdl2_app_bound.time_fps_target = 60
+    tor_sdl2_app_bound.time_delta_time_fixed = 60
+
     // Init sdl2 tff
     sdl2_tff.Init()
 }
@@ -151,8 +161,10 @@ app_run :: proc()
     // Time
     time_current := (f64)(sdl2.GetPerformanceCounter())
 	time_previous := time_current
-    time_fps_target := 12000
-    target_frame_time := 1000.0 / (f64)(time_fps_target)
+    time_frame_time_target := (f64)(0)
+
+     // Fixed update variables
+     time_accumulator_fixed := 0.0  // Accumulates delta time for fixed update
 
     // Event (on start)
     if (tor_sdl2_app_bound.on_start != nil) { tor_sdl2_app_bound.on_start() }
@@ -163,12 +175,19 @@ app_run :: proc()
     {
         // Time (start)
         {
+            // Get target frame time
+            time_frame_time_target = 1000.0 / (f64)(tor_sdl2_app_bound.time_fps_target)
+
             // Get previous and current time
             time_previous = time_current;
             time_current = (f64)(sdl2.GetPerformanceCounter())
 
             // Get delta time
             tor_sdl2_app_bound.time_delta_time = f64((time_current - time_previous) / (f64)(sdl2.GetPerformanceFrequency()))
+            tor_sdl2_app_bound.time_delta_time_fixed = 1.0 / tor_sdl2_app_bound.time_fps_target_fixed
+            
+            // Accumulate delta time for fixed update
+            time_accumulator_fixed += tor_sdl2_app_bound.time_delta_time
         }
 
         // SDL Event Loop
@@ -181,9 +200,25 @@ app_run :: proc()
             }
         }
 
-        // Update | Render
+        // Fixed Update
         {
-            if (tor_sdl2_app_bound.on_update != nil) { tor_sdl2_app_bound.on_update() }
+            // Perform fixed updates as long as we have enough accumulated time
+            for (time_accumulator_fixed >= tor_sdl2_app_bound.time_delta_time_fixed)
+            {
+                if (tor_sdl2_app_bound.on_update_fixed != nil) { tor_sdl2_app_bound.on_update_fixed(tor_sdl2_app_bound.time_delta_time_fixed) }
+
+                // Decrease time_accumulator_fixed by the fixed time step
+                time_accumulator_fixed -= tor_sdl2_app_bound.time_delta_time_fixed
+            }
+        }
+
+        // Update
+        {
+            if (tor_sdl2_app_bound.on_update != nil) { tor_sdl2_app_bound.on_update(tor_sdl2_app_bound.time_delta_time) }
+        }
+
+        // Render
+        {
             if (tor_sdl2_app_bound.on_render != nil) { tor_sdl2_app_bound.on_render() }
         }
 
@@ -193,10 +228,10 @@ app_run :: proc()
             frame_time := f64((sdl2.GetPerformanceCounter() - (u64)(time_previous)) * 1000) / (f64)(sdl2.GetPerformanceFrequency())
 
             // If the frame took too long (greater than target), skip delay
-            if (frame_time < target_frame_time)
+            if (frame_time < time_frame_time_target)
             {
                 // Delay the rest of the frame to limit the FPS
-                delay_time := target_frame_time - frame_time
+                delay_time := time_frame_time_target - frame_time
                 sdl2.Delay(u32(delay_time))  // SDL_Delay expects milliseconds
             }
         }
