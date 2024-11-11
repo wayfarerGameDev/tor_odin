@@ -6,11 +6,11 @@ import "../tor_sdl2"
 
 ENTITY_COUNT                                                   :: 50000
 
-app                                                            : tor_sdl2.tor_sdl2_app
-renderer                                                       : tor_sdl2.tor_sdl2_renderer
-entity_destinations                                            : [ENTITY_COUNT * 4]f64
+window                                                         : u8
+renderer                                                       : u8
 texture                                                        : u8
 font                                                           : u8
+entity_destinations                                            : [ENTITY_COUNT * 4]f64
 
 /*------------------------------------------------------------------------------
 Game
@@ -19,23 +19,27 @@ Game
 main :: proc()
 {
     // Create app
-    tor_sdl2.app_bind(&app)
     tor_sdl2.app_init()
-    tor_sdl2.app_set_window_resizable(true)
     tor_sdl2.app_bind_events(start,end,update_fixed,update,render,resized)
     tor_sdl2.app_run()
 }
 
 start :: proc()
-{    
+{   
+    // Create window
+    window = tor_sdl2.window_create("Tor (SDL)",{1280, 720},true)
+    tor_sdl2.window_set_resizable(true) 
+
     // Create renderer
-    tor_sdl2.renderer_bind(&renderer)
-    tor_sdl2.renderer_init(app.window)
+    renderer = tor_sdl2.renderer_create(tor_sdl2.window_get_rawptr(window),true)
     tor_sdl2.renderer_set_clear_color_rgba({0,0,0,0})
 
     // Load texture
-    texture = tor_sdl2.renderer_load_texture("content/chicken.png")
+    texture = tor_sdl2.renderer_create_texture("content/chicken.png",true)
     texture_query_size := tor_sdl2.renderer_query_texture_size(texture)
+
+    // Load Font
+    font = tor_sdl2.renderer_create_tff_font("content/OpenSans_Regular.ttf",16,true)
 
     // Entities
     for i:= 0; i < ENTITY_COUNT - 1; i+=1
@@ -47,8 +51,6 @@ start :: proc()
         entity_destinations[i * 4 + 2] = (f64)(texture_query_size.x)
         entity_destinations[i * 4 + 3] = (f64)(texture_query_size.y)
     }
-
-    font = tor_sdl2.renderer_load_tff_font("content/OpenSans_Regular.ttf",16)
 }
 
 end :: proc()
@@ -62,8 +64,6 @@ end :: proc()
 
 update_fixed :: proc(delta_time_fixed : f64)
 { 
-    fmt.printfln("hit")
-
     // Entities
     for i:= 0; i < ENTITY_COUNT - 1; i+=1
     {
@@ -73,7 +73,7 @@ update_fixed :: proc(delta_time_fixed : f64)
 
 update :: proc(delta_time : f64)
 {
-    fmt.printfln(app.time_fps_as_string)
+    // fmt.printfln(app.time_fps_as_string)
 }
 
 render :: proc()
@@ -83,7 +83,6 @@ render :: proc()
     tor_sdl2.renderer_set_viewport_position(0,{0,0})
    
     // Entities
-    tor_sdl2.renderer_bind_texture(texture)
     for i:= 0; i < ENTITY_COUNT - 1; i+=1
     {
         // tor_sdl2.renderer_draw_texture_atlas_sdl2(nil,&texture_destinations[i])
@@ -105,7 +104,7 @@ render :: proc()
 resized :: proc()
 {
     // apply wnidow resize to render viewports
-    size := tor_sdl2.app_get_window_size()
+    size := tor_sdl2.window_get_size()
     tor_sdl2.renderer_set_viewport_size(0,size)
     tor_sdl2.renderer_set_viewport_size(1,size)
 }

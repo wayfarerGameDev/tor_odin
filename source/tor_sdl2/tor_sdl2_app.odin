@@ -9,17 +9,12 @@ TOR_SDL2_APP_STATE_NULL                                     :: 0b00000000
 TOR_SDL2_APP_STATE_INIT                                     :: 0b00000001
 TOR_SDL2_APP_STATE_RUNNING                                  :: 0b00000010
 
-// Window
-TOR_SDL2_APP_WINDOW_WIDTH_DEFAULT                           : i32 : 1280
-TOR_SDL2_APP_WINDOW_HEIGHT_DEFAULT                          : i32 : 720
-TOR_SDL2_APP_WINDOW_TITLE_DEFAULT                           : cstring : "Tor (SDL)"
-
 // Event
 tor_sdl2_app_event :: proc()
 tor_sdl2_app_timed_event :: proc(delta_time : f64)
 
 // Bound
-tor_sdl2_app_bound                                          : ^tor_sdl2_app
+tor_sdl2_app_bound                                          : tor_sdl2_app
 
 // Instance
 tor_sdl2_app :: struct
@@ -41,74 +36,11 @@ tor_sdl2_app :: struct
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->App (Window)
-------------------------------------------------------------------------------*/
-
-app_get_window_size :: proc() -> ([2]i32)
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-    
-    // Get size
-    x, y : i32
-    sdl2.GetWindowSize(tor_sdl2_app_bound.window,&x,&y)
-    return { x ,y }
-}
-
-app_set_window_title :: proc(title:string)
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-    
-    // Set title
-    sdl2.SetWindowTitle(tor_sdl2_app_bound.window,"FIX")
-}
-
-app_set_window_resizable :: proc(bEnabled : bool)
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Set resizable
-    sdl2.SetWindowResizable(tor_sdl2_app_bound.window,cast(sdl2.bool)bEnabled)
-}
-
-app_set_window_maxamize :: proc()
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Maximize
-    sdl2.MaximizeWindow(tor_sdl2_app_bound.window)
-}
-
-app_set_window_minamized :: proc ()
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Minimize
-    sdl2.MinimizeWindow(tor_sdl2_app_bound.window)
-}
-
-app_set_window_restore :: proc()
-{
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
-    // Restore
-    sdl2.RestoreWindow(tor_sdl2_app_bound.window)
-}
-
-/*------------------------------------------------------------------------------
 TOR : SDL2->App (Events)
 ------------------------------------------------------------------------------*/
 
 app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_event, on_update_fixed : tor_sdl2_app_timed_event, on_update : tor_sdl2_app_timed_event, on_render : tor_sdl2_app_event, on_resize : tor_sdl2_app_event)
 {
-    // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
-
     // Bind events
     tor_sdl2_app_bound.on_start = on_start;
     tor_sdl2_app_bound.on_end = on_end;
@@ -122,28 +54,14 @@ app_bind_events :: proc( on_start : tor_sdl2_app_event, on_end : tor_sdl2_app_ev
 TOR : SDL2->App (Main)
 ------------------------------------------------------------------------------*/
 
-app_bind :: proc(app: ^tor_sdl2_app)
-{
-    // Validate
-    assert(app.state != TOR_SDL2_APP_STATE_RUNNING, "App (SDL) : Can't bind when running")
-
-    // Bind
-    tor_sdl2_app_bound = app
-}
-
 app_init :: proc()
 {
     // Validate
-    assert(tor_sdl2_app_bound != nil, "App (SDL) : App not bound")
     assert(tor_sdl2_app_bound.state == TOR_SDL2_APP_STATE_NULL, "App (SDL) : Already initalized")
 
     // Init state | SDL
     tor_sdl2_app_bound.state = TOR_SDL2_APP_STATE_INIT
 	assert(sdl2.Init(sdl2.INIT_EVERYTHING) == 0, sdl2.GetErrorString())
-
-    // Create SDL window
-    tor_sdl2_app_bound.window = sdl2.CreateWindow(TOR_SDL2_APP_WINDOW_TITLE_DEFAULT, sdl2.WINDOWPOS_CENTERED,sdl2.WINDOWPOS_CENTERED,TOR_SDL2_APP_WINDOW_WIDTH_DEFAULT,TOR_SDL2_APP_WINDOW_HEIGHT_DEFAULT,sdl2.WINDOW_SHOWN)
-    assert(tor_sdl2_app_bound.window != nil, sdl2.GetErrorString())
 
     // Default fps target
     tor_sdl2_app_bound.time_fps_target = 60

@@ -3,6 +3,7 @@ import sdl2 "vendor:sdl2"
 import sdl2_image "vendor:sdl2/image" 
 import sdl2_tff "vendor:sdl2/ttf"
 import "core:math/rand"
+import "core:mem"
 
 // State
 TOR_SDL2_RENDERER_STATE_NULL                               :: 0b00000000
@@ -32,11 +33,13 @@ tor_sdl2_renderer_text_tff_static_value                    :: struct
     size                                                   : [2]i32
 }
 
+// Renderer cache
+tor_sdl2_renderer_renderer_cache                           : map[u8] ^tor_sdl2_renderer
+
 // Instance
 tor_sdl2_renderer                                          :: struct
 {
     state                                                  : u8,    
-    window                                                 : ^sdl2.Window,
     renderer                                               : ^sdl2.Renderer,
     clear_color                                            : [4]u8,
     draw_color                                             : [4]u8,
@@ -45,7 +48,7 @@ tor_sdl2_renderer                                          :: struct
     bound_font                                             : ^sdl2_tff.Font,
     viewport_rects                                         : [TOR_SDL2_RENDERER_VIEWPORT_COUNT] tor_sdl2_rect,
     texture_cache                                          : map[u8] ^sdl2.Texture,
-    ttf_font_cache                                         : map[u8] ^ sdl2_tff.Font,
+    ttf_font_cache                                         : map[u8] ^sdl2_tff.Font,
     ttf_text_static_texture_cache                          : map[tor_sdl2_renderer_text_tff_static_key] tor_sdl2_renderer_text_tff_static_value
 }
 
@@ -167,7 +170,7 @@ renderer_bind_texture :: proc(texture_id : u8)
     tor_sdl2_renderer_bound.bound_texture = tor_sdl2_renderer_bound.texture_cache[texture_id]
 }
 
-renderer_load_texture :: proc(file_path : cstring) -> u8
+renderer_create_texture :: proc(file_path : cstring, bind : bool) -> u8
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -178,14 +181,20 @@ renderer_load_texture :: proc(file_path : cstring) -> u8
     {
         if (tor_sdl2_renderer_bound.texture_cache[u8(i)] == nil)
         {
-            texture_id = u8(rand.float32_range(1,255))
+            texture_id = u8(i)
             
-             // Load texture
+            // Load texture
             texture := sdl2_image.LoadTexture(tor_sdl2_renderer_bound.renderer, file_path)
             assert(texture != nil, sdl2.GetErrorString())
 
             // Add to cache
             tor_sdl2_renderer_bound.texture_cache[texture_id] = texture
+
+            // Bind
+            if (bind)
+            {
+                tor_sdl2_renderer_bound.bound_texture = texture
+            }
             
             // Return
             return texture_id
@@ -322,7 +331,7 @@ renderer_bind_text_tff_font :: proc(font_id : u8)
     tor_sdl2_renderer_bound.bound_font = tor_sdl2_renderer_bound.ttf_font_cache[font_id]
 }
 
-renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u8
+renderer_create_tff_font :: proc(file_path : cstring, font_size : i32, bind : bool) -> u8
 {
     // Validate
     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -341,6 +350,12 @@ renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u8
 
             // Add to cache
             tor_sdl2_renderer_bound.ttf_font_cache[font_id] = font
+
+            // Bind
+            if (bind)
+            {
+                tor_sdl2_renderer_bound.bound_font = font
+            }
             
             // Return
             return font_id
@@ -351,7 +366,7 @@ renderer_load_tff_font :: proc(file_path : cstring, font_size : i32) -> u8
     return 0
 }
 
-content_destroy_tff_font :: proc(font_id : u8)
+renderer_destroy_tff_font :: proc(font_id : u8)
 {
     // Font
     font := tor_sdl2_renderer_bound.ttf_font_cache[font_id]
@@ -435,31 +450,55 @@ renderer_set_to_defaults :: proc()
     sdl2.SetRenderDrawBlendMode(tor_sdl2_renderer_bound.renderer,sdl2.BlendMode.BLEND)
 }
 
-renderer_bind :: proc(renderer : ^tor_sdl2_renderer)
+renderer_bind :: proc(renderer_id : u8)
 {
     // Bind renderer
-    tor_sdl2_renderer_bound = renderer
+    tor_sdl2_renderer_bound = tor_sdl2_renderer_renderer_cache[renderer_id]
 }
 
-renderer_init :: proc(sdl2_window : rawptr)
+renderer_free :: proc(renderer_id : u8)
 {
-     // Validate
-     assert(tor_sdl2_renderer_bound != nil, "Renderer (SDL) : Renderer not bound")
-     assert(tor_sdl2_renderer_bound.state == TOR_SDL2_RENDERER_STATE_NULL, "Renderer (SDL) : Already initalized")
-     assert(sdl2_window != nil, "Renderer (SDL) : SDL Window is undefined")
+    // delete 
+}
+
+renderer_get_rawptr :: proc(renderer_id : u8) -> rawptr
+{
+    return tor_sdl2_renderer_renderer_cache[renderer_id]
+}
+
+renderer_create :: proc(sdl2_window : rawptr, bind : bool) -> u8
+{
+    // Validate
+    assert(sdl2_window != nil, "Renderer (SDL) : SDL Window is undefined")
      
-     // Bind window
-     tor_sdl2_renderer_bound.window = (^sdl2.Window)(sdl2_window)
+    // Enable batching
+    sdl2.SetHint(sdl2.HINT_RENDER_BATCHING,"1")
 
-     // Create renderer
-     tor_sdl2_renderer_bound.renderer = sdl2.CreateRenderer(tor_sdl2_renderer_bound.window,-1,sdl2.RENDERER_ACCELERATED)
-     assert(tor_sdl2_renderer_bound.renderer != nil, sdl2.GetErrorString())
+    // Create renderer
+    renderer_id := u8(0)
+    for i := 1; i < 255; i+=1
+    {
+        if (tor_sdl2_renderer_renderer_cache[u8(i)] == nil)
+        {
+            // ID
+            renderer_id = u8(i)
+            
+            // Create renderer
+            tor_sdl2_renderer_renderer_cache[renderer_id] = new (tor_sdl2_renderer)
+            tor_sdl2_renderer_renderer_cache[renderer_id].renderer = sdl2.CreateRenderer((^sdl2.Window)(sdl2_window),-1,sdl2.RENDERER_ACCELERATED)
+                        
+            // Bind
+            if (bind)
+            {
+                tor_sdl2_renderer_bound = tor_sdl2_renderer_renderer_cache[renderer_id]
+            }
 
-     // Enable batching
-     sdl2.SetHint(sdl2.HINT_RENDER_BATCHING,"1")
+            // Return
+            return renderer_id
+        }
+    }
 
-     // Default
-     renderer_set_to_defaults()
+    return 0
 }
 
 renderer_deinit :: proc()
