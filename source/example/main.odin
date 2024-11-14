@@ -2,15 +2,19 @@ package main
 
 import "core:fmt"
 import "core:math/rand"
-import "../tor_sdl2"
+import "../tor_core/sdl2/app"
+import "../tor_core/sdl2/window"
+import "../tor_core/sdl2/input"
+import "../tor_core/sdl2/renderer"
 
 ENTITY_COUNT                                                   :: 50000
+ENTITY_DATA_CHUNCK                                             :: 4
 
-window                                                         : u8
-renderer                                                       : u8
-texture                                                        : u8
-font                                                           : u8
-entity_destinations                                            : [ENTITY_COUNT * 4]f64
+_window                                                         : u8
+_renderer                                                       : u8
+_texture                                                        : u8
+_font                                                           : u8
+_entity_data                                                    : [ENTITY_COUNT * ENTITY_DATA_CHUNCK]f64
 
 /*------------------------------------------------------------------------------
 Game
@@ -19,92 +23,92 @@ Game
 main :: proc()
 {
     // Create app
-    tor_sdl2.app_init()
-    tor_sdl2.app_bind_events(start,end,update_fixed,update,render,resized)
-    tor_sdl2.app_run()
+    app.init()
+    app.bind_events(start,end,update_fixed,update,render,resized)
+    app.run()
 }
 
 start :: proc()
 {   
     // Create window
-    window = tor_sdl2.window_create("Tor (SDL)",{1280, 720},true)
-    tor_sdl2.window_set_resizable(true) 
+    _window = window.create("Tor (SDL)",{1280, 720},true)
+    window.set_resizable(true) 
 
     // Create renderer
-    renderer = tor_sdl2.renderer_create(tor_sdl2.window_get_rawptr(window),true)
-    tor_sdl2.renderer_set_clear_color_rgba({0,0,0,0})
+    _renderer = renderer.create(window.get_rawptr(_window),true)
+    renderer.set_clear_color_rgba({0,0,0,0})
 
     // Load texture
-    texture = tor_sdl2.renderer_create_texture("content/chicken.png",true)
-    texture_query_size := tor_sdl2.renderer_query_texture_size(texture)
+    _texture = renderer.create_texture("content/chicken.png",true)
 
-    // Load Font
-    font = tor_sdl2.renderer_create_tff_font("content/OpenSans_Regular.ttf",16,true)
+    // Load font
+    _font = renderer.create_tff_font("content/OpenSans_Regular.ttf",16,true)
 
     // Entities
-    for i:= 0; i < ENTITY_COUNT - 1; i+=1
+    for i:= 0; i < ENTITY_COUNT * ENTITY_DATA_CHUNCK; i+= ENTITY_DATA_CHUNCK
     {
-        rand_x := (i32)(rand.float32_range(50,1204))
-        rand_y := (i32)(rand.float32_range(50,1204))
-        entity_destinations[i * 4] = (f64)(rand_x)
-        entity_destinations[i * 4 + 1] = (f64)(rand_y)
-        entity_destinations[i * 4 + 2] = (f64)(texture_query_size.x)
-        entity_destinations[i * 4 + 3] = (f64)(texture_query_size.y)
+        _entity_data[i] = (f64)(rand.float32_range(50,1204))
+        _entity_data[i + 1] = (f64)(rand.float32_range(50,720))
+        _entity_data[i + 2] = 32
+        _entity_data[i + 3] = 32
     }
 }
 
 end :: proc()
 {
     // Destroy renderer
-    tor_sdl2.renderer_deinit()
+    renderer.deinit()
 
     // Destroy content
-    tor_sdl2.renderer_destroy_texture(texture)
+    renderer.destroy_texture(_texture)
 }
 
 update_fixed :: proc(delta_time_fixed : f64)
 { 
-    // Entities
-    for i:= 0; i < ENTITY_COUNT - 1; i+=1
-    {
-        entity_destinations[i * 4] = 0
-    }
 }
 
 update :: proc(delta_time : f64)
 {
-    // fmt.printfln(app.time_fps_as_string)
+    input.update();
+
+    if (input.get_key_state(input.INPUT_KEY_W,1))
+    {
+        // Entities
+        for i:= 0; i < ENTITY_COUNT * ENTITY_DATA_CHUNCK; i+= ENTITY_DATA_CHUNCK
+        {
+            _entity_data[i] += 1 * delta_time
+        }
+    }
 }
 
 render :: proc()
 {
     // World space
-    tor_sdl2.renderer_set_viewport_current(0)
-    tor_sdl2.renderer_set_viewport_position(0,{0,0})
+    renderer.set_viewport_current(0)
+    renderer.set_viewport_position(0,{0,0})
    
     // Entities
-    for i:= 0; i < ENTITY_COUNT - 1; i+=1
+    for i:= 0; i < ENTITY_COUNT * ENTITY_DATA_CHUNCK; i+= ENTITY_DATA_CHUNCK
     {
-        // tor_sdl2.renderer_draw_texture_atlas_sdl2(nil,&texture_destinations[i])
-        tor_sdl2.renderer_draw_texture_atlas_f64( {0,0,20,20}, {entity_destinations[i * 4],entity_destinations[i * 4 + 1],entity_destinations[i * 4 + 2],entity_destinations[i * 4 + 3]})
+        renderer.draw_texture_atlas_f64( {0,0,20,20}, {_entity_data[i],_entity_data[i + 1],_entity_data[i + 2],_entity_data[i + 3]})
     }
 
     // Screenspace
-    tor_sdl2.renderer_set_viewport_current(1)
+    renderer.set_viewport_current(1)
     
     // UI
-    tor_sdl2.renderer_bind_text_tff_font(font)
-    tor_sdl2.renderer_draw_text_tff_static("I like to eat tacos", {0, 0})
+    renderer.bind_text_tff_font(_font)
+    renderer.draw_text_tff_static("I like to eat tacos", {0, 0})
     
     // Final
-    tor_sdl2.renderer_render_present()
-    tor_sdl2.renderer_render_clear()
+    renderer.render_present()
+    renderer.render_clear()
 }
 
 resized :: proc()
 {
-    // apply wnidow resize to render viewports
-    size := tor_sdl2.window_get_size()
-    tor_sdl2.renderer_set_viewport_size(0,size)
-    tor_sdl2.renderer_set_viewport_size(1,size)
+    // Apply wnidow resize to render viewports
+    size := window.get_size()
+    renderer.set_viewport_size(0,size)
+    renderer.set_viewport_size(1,size)
 }
