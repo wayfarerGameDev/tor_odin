@@ -1,60 +1,73 @@
-package tor_core_sdl2_renderer
+package tor_core_sdl2_renderer2d
 import sdl2 "vendor:sdl2"
 import sdl2_image "vendor:sdl2/image" 
 import sdl2_tff "vendor:sdl2/ttf"
 import "core:math/rand"
-import "core:mem"
+import "core:c"
+
+// Blendmode
+BLENDMODE_NONE                                           :: 0x00000000
+BLENDMODE_ALPHA                                          :: 0x00000001
+BLENDMODE_ADD                                            :: 0x00000002
+BLENDMODE_MODULATE                                       :: 0x00000004
+BLENDMODE_MULTIPLY                                       :: 0x00000008
+BLENDMODE_INVALID                                        :: 0x7FFFFFFF
 
 // State
+@(private)
 STATE_NULL                                                :: 0b00000000
+@(private)
 STATE_INIT                                                :: 0b00000001
 
-// Type aliases
-point                                                     :: sdl2.Point
-rect                                                      :: sdl2.Rect
-render_flip                                               :: sdl2.RendererFlip
-
-// Bound
-bound                                                     : ^renderer
-
-// Viewport                                                
+// Viewport
+@(private)
 VIEWPORT_COUNT                                            :: 8
 
 // Text
-text_tff_static_key                                        :: struct 
+@(private)
+text_tff_static_key                                       :: struct 
 {
-    text                                                   : cstring,
-    font                                                   : ^sdl2_tff.Font,
+    text                                                  : cstring,
+    font                                                  : ^sdl2_tff.Font,
 }
 
-text_tff_static_value                                      :: struct 
+@(private)
+text_tff_static_value                                     :: struct 
 {
-    texture                                                :^sdl2.Texture,
-    size                                                   : [2]i32
+    texture                                               :^sdl2.Texture,
+    size                                                  : [2]i32
 }
 
-// Renderer cache
-cache                                                      : map[u8] ^renderer
+// Bound | Cache
+@(private)
+bound                                                     : ^renderer2d
+@(private)
+cache                                                     : map[u8] ^renderer2d
 
 // Instance
-renderer                                                   :: struct
+@(private)
+renderer2d                                                :: struct
 {
-    state                                                  : u8,    
-    renderer                                               : ^sdl2.Renderer,
-    clear_color                                            : [4]u8,
-    draw_color                                             : [4]u8,
-    draw_color_sdl                                         :  sdl2.Color,
-    bound_texture                                          : ^sdl2.Texture,
-    bound_font                                             : ^sdl2_tff.Font,
-    viewport_rects                                         : [VIEWPORT_COUNT] rect,
-    texture_cache                                          : map[u8] ^sdl2.Texture,
-    ttf_font_cache                                         : map[u8] ^sdl2_tff.Font,
-    ttf_text_static_texture_cache                          : map[text_tff_static_key] text_tff_static_value
+    state                                                 : u8,    
+    renderer                                              : ^sdl2.Renderer,
+    clear_color                                           : [4]u8,
+    draw_color                                            : [4]u8,
+    draw_color_sdl                                        :  sdl2.Color,
+    viewport_rects                                        : [VIEWPORT_COUNT] sdl2.Rect,
+    sprite_bound                                          : ^sdl2.Texture,
+    sprite_cache                                          : map[u8] ^sdl2.Texture,
+    ttf_font_bound                                        : ^sdl2_tff.Font,
+    ttf_font_cache                                        : map[u8] ^sdl2_tff.Font,
+    ttf_text_static_sprite_cache                          : map[text_tff_static_key] text_tff_static_value
 }
 
 // Draw
-draw_destination_rect                                      : sdl2.Rect
-draw_source_rect                                           : sdl2.Rect
+@(private)
+draw_destination_rect                                     : sdl2.Rect
+@(private)
+draw_destination_rect_f                                   : sdl2.FRect
+@(private)
+draw_source_rect                                          : sdl2.Rect
 
 
 /*------------------------------------------------------------------------------
@@ -108,7 +121,7 @@ set_draw_color_hex :: proc(hex : u32, alpha : u8)
 TOR : SDL2->Renderer (viewport)
 ------------------------------------------------------------------------------*/
 
-set_viewport_current :: proc(viewport : u8)
+set_viewport :: proc(viewport : u8)
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -118,14 +131,17 @@ set_viewport_current :: proc(viewport : u8)
     sdl2.RenderSetViewport(bound.renderer,&bound.viewport_rects[viewport_clamped])
 }
 
-set_viewport_rect :: proc(viewport : u8, rect : rect)
+set_viewport_position_size :: proc(viewport : u8, position : [2]i32, size : [2]i32)
 {
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
+     // Validate
+     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
 
-    // Set viewport rect
-    viewport_clamped := clamp(viewport,0,VIEWPORT_COUNT - 1)
-    bound.viewport_rects[viewport_clamped] = rect
+     // Set viewport position | size
+     viewport_clamped := clamp(viewport,0,VIEWPORT_COUNT - 1)
+     bound.viewport_rects[viewport_clamped].x = position.x
+     bound.viewport_rects[viewport_clamped].y = position.y
+     bound.viewport_rects[viewport_clamped].w = size.x
+     bound.viewport_rects[viewport_clamped].h = size.y
 }
 
 set_viewport_position :: proc(viewport : u8, position : [2]i32)
@@ -151,53 +167,52 @@ set_viewport_size :: proc(viewport : u8, size : [2]i32)
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Pixel)
+TOR : SDL2->Renderer (Sprite : Load)
 ------------------------------------------------------------------------------*/
 
-
-
-/*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (text tff : Load)
-------------------------------------------------------------------------------*/
-
-bind_texture :: proc(texture_id : u8)
+bind_sprite :: proc(sprite_id : u8)
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.texture_cache[texture_id] != nil, "texture with id does not exist")
+    assert(bound.sprite_cache[sprite_id] != nil, "texture with id does not exist")
 
-    // Bind texture
-    bound.bound_texture = bound.texture_cache[texture_id]
+    // Bind sprite
+    bound.sprite_bound = bound.sprite_cache[sprite_id]
+
+    // Apply blendmode
+    blend_mode := sdl2.BlendMode.NONE
+    sdl2.GetRenderDrawBlendMode(bound.renderer,&blend_mode)
+    sdl2.SetTextureBlendMode(bound.sprite_bound,blend_mode)
 }
 
-create_texture :: proc(file_path : cstring, bind : bool) -> u8
+create_sprite :: proc(file_path : cstring, bind : bool) -> u8
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
  
     // Load texture
-    texture_id := u8(0)
+    sprite_id := u8(0)
     for i := 1; i < 255; i+=1
     {
-        if (bound.texture_cache[u8(i)] == nil)
+        if (bound.sprite_cache[u8(i)] == nil)
         {
-            texture_id = u8(i)
+            sprite_id = u8(i)
             
             // Load texture
             texture := sdl2_image.LoadTexture(bound.renderer, file_path)
             assert(texture != nil, sdl2.GetErrorString())
 
             // Add to cache
-            bound.texture_cache[texture_id] = texture
+            bound.sprite_cache[sprite_id] = texture
 
             // Bind
             if (bind)
             {
-                bound.bound_texture = texture
+                bound.sprite_bound = texture
             }
             
             // Return
-            return texture_id
+            return sprite_id
         }
     }
     
@@ -205,28 +220,28 @@ create_texture :: proc(file_path : cstring, bind : bool) -> u8
     return 0
 }
 
-destroy_texture :: proc(texture_id : u8)
+destroy_sprite :: proc(sprite_id : u8)
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
 
     // Texture
-    texture := bound.texture_cache[texture_id]
+    texture := bound.sprite_cache[sprite_id]
     
     // Remove from cache
-    bound.texture_cache[texture_id] = nil
+    bound.sprite_cache[sprite_id] = nil
     
     // Destroy texture
     sdl2.DestroyTexture(texture)
 }
 
-query_texture_size :: proc(texture_id : u8) -> [2]i32
+query_sprite_size :: proc(sprite_id : u8) -> [2]i32
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
 
     // Texture
-    texture := bound.texture_cache[texture_id]
+    texture := bound.sprite_cache[sprite_id]
 
     // Return size
     rect := sdl2.Rect {}
@@ -235,120 +250,76 @@ query_texture_size :: proc(texture_id : u8) -> [2]i32
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Texture : Draw SDL)
+TOR : SDL2->Renderer (Sprite : Draw)
 ------------------------------------------------------------------------------*/
 
-draw_texture_sdl2 :: proc(destination_rect : ^rect)
-{
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Render
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,nil,destination_rect)
-}
-
-draw_texture_sdl2_ex :: proc(destination_rect : ^rect, angle: f64, point : ^point, render_flip : render_flip)
+draw_sprite_i32 :: proc(destination_rect : [4]i32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
-    sdl2.RenderCopyEx(bound.renderer,bound.bound_texture,nil,destination_rect,angle,point,render_flip)
-}
-
-draw_texture_atlas_sdl2 :: proc(source_rect : ^rect, destination_rect : ^rect)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Render
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,source_rect,destination_rect)
-}
-
-draw_texture_atlas_sdl2_ex :: proc(source_rect : ^rect, destination_rect : ^rect, angle: f64, point : ^point, render_flip : render_flip)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Render
-    sdl2.RenderCopyEx(bound.renderer,bound.bound_texture,source_rect,destination_rect,angle,point,render_flip)
-}
-
-/*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Texture : Draw)
-------------------------------------------------------------------------------*/
-
-draw_texture_i32 :: proc(destination_rect : [4]i32)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Render
+    // Draw
     draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,nil,&draw_destination_rect)
+    sdl2.RenderCopy(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect)
 }
 
-draw_texture_f32 :: proc(destination_rect : [4]f32)
+draw_sprite_f32 :: proc(destination_rect : [4]f32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
-    draw_destination_rect = sdl2.Rect {(i32)(destination_rect.x),(i32)(destination_rect.y),(i32)(destination_rect.z),(i32)(destination_rect.w)}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,nil,&draw_destination_rect)
+    // Draw
+    draw_destination_rect_f = sdl2.FRect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect_f)
 }
 
-draw_texture_f64 :: proc(destination_rect : [4]f64)
+draw_sprite_f64 :: proc(destination_rect : [4]f64)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
-    draw_destination_rect = sdl2.Rect {(i32)(destination_rect.x),(i32)(destination_rect.y),(i32)(destination_rect.z),(i32)(destination_rect.w)}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,nil,&draw_destination_rect)
+    // Draw
+    draw_destination_rect_f = sdl2.FRect {(f32)(destination_rect.x),(f32)(destination_rect.y),(f32)(destination_rect.z),(f32)(destination_rect.w)}
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect_f)
 }
 
-draw_texture_atlas_i32 :: proc(source_rect : [4]i32, destination_rect : [4]i32)
+draw_sprite_atlas_i32 :: proc(source_rect : [4]i32, destination_rect : [4]i32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
+    // Draw
     draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
     draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,&draw_source_rect,&draw_destination_rect)
+    sdl2.RenderCopy(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect)
 }
 
-draw_texture_atlas_f32 :: proc(source_rect : [4]f32, destination_rect : [4]f32)
+draw_sprite_atlas_f32 :: proc(source_rect : [4]i32, destination_rect : [4]f32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
-    draw_destination_rect = sdl2.Rect {(i32)(destination_rect.x),(i32)(destination_rect.y),(i32)(destination_rect.z),(i32)(destination_rect.w)}
-    draw_source_rect = sdl2.Rect {(i32)(source_rect.x),(i32)(source_rect.y),(i32)(source_rect.z),(i32)(source_rect.w)}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,&draw_source_rect,&draw_destination_rect)
+    // Draw
+    draw_destination_rect_f = sdl2.FRect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
+    draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect_f)
 }
 
-draw_texture_atlas_f64 :: proc(source_rect : [4]f64, destination_rect : [4]f64)
+draw_sprite_atlas_f64 :: proc(source_rect : [4]i32, destination_rect : [4]f64)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.bound_texture != nil, "Renderer (SDL) : Texture not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
-    // Render
-    draw_destination_rect = sdl2.Rect {(i32)(destination_rect.x),(i32)(destination_rect.y),(i32)(destination_rect.z),(i32)(destination_rect.w)}
-    draw_source_rect = sdl2.Rect {(i32)(source_rect.x),(i32)(source_rect.y),(i32)(source_rect.z),(i32)(source_rect.w)}
-    sdl2.RenderCopy(bound.renderer,bound.bound_texture,&draw_source_rect,&draw_destination_rect)
+     // Draw
+     draw_destination_rect_f = sdl2.FRect {(f32)(destination_rect.x),(f32)(destination_rect.y),(f32)(destination_rect.z),(f32)(destination_rect.w)}
+     draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
+     sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect_f)
 }
 
 /*------------------------------------------------------------------------------
@@ -362,10 +333,10 @@ bind_text_tff_font :: proc(font_id : u8)
     assert(bound.ttf_font_cache[font_id] != nil, "font with id does not exist")
 
     // Font
-    bound.bound_font = bound.ttf_font_cache[font_id]
+    bound.ttf_font_bound = bound.ttf_font_cache[font_id]
 }
 
-create_tff_font :: proc(file_path : cstring, font_size : i32, bind : bool) -> u8
+create_text_tff_font :: proc(file_path : cstring, font_size : i32, bind : bool) -> u8
 {
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
@@ -388,7 +359,7 @@ create_tff_font :: proc(file_path : cstring, font_size : i32, bind : bool) -> u8
             // Bind
             if (bind)
             {
-                bound.bound_font = font
+                bound.ttf_font_bound = font
             }
             
             // Return
@@ -400,7 +371,7 @@ create_tff_font :: proc(file_path : cstring, font_size : i32, bind : bool) -> u8
     return 0
 }
 
-destroy_tff_font :: proc(font_id : u8)
+destroy_text_tff_font :: proc(font_id : u8)
 {
     // Font
     font := bound.ttf_font_cache[font_id]
@@ -421,27 +392,27 @@ draw_text_tff_static :: proc(text : cstring, position : [2]i32)
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     assert(sdl2_tff.WasInit() != 0, "Renderer (SDL) : Tff not initalized")
-    assert(bound.bound_font != nil, "Renderer (SDL) : Font not bound")
+    assert(bound.ttf_font_bound != nil, "Renderer (SDL) : Font not bound")
 
     // Key 
-    key := text_tff_static_key { text, bound.bound_font }
+    key := text_tff_static_key { text, bound.ttf_font_bound }
 
     // Texture
-    cache := bound.ttf_text_static_texture_cache[key]
+    cache := bound.ttf_text_static_sprite_cache[key]
     if (cache.texture == nil)
     {
         // Surface
-        surface := sdl2_tff.RenderText_Solid(bound.bound_font,text, bound.draw_color_sdl)
+        surface := sdl2_tff.RenderText_Solid(bound.ttf_font_bound,text, bound.draw_color_sdl)
         texture := sdl2.CreateTextureFromSurface(bound.renderer,surface)
 
         // cache
-        bound.ttf_text_static_texture_cache[key] = { texture, {surface.w,surface.h} }
+        bound.ttf_text_static_sprite_cache[key] = { texture, {surface.w,surface.h} }
 
         // Free Surface And Texture
         sdl2.FreeSurface(surface)
     }
   
-    // Render
+    // Draw
     dest_rect := sdl2.Rect{ position.x, position.y, cache.size.x, cache.size.y }
     sdl2.RenderCopy(bound.renderer, cache.texture,nil,&dest_rect)
 }
@@ -451,13 +422,13 @@ draw_text_tff_dynamic :: proc(text : cstring, position : [2]i32)
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     assert(sdl2_tff.WasInit() != 0, "Renderer (SDL) : Tff not initalized")
-    assert(bound.bound_font != nil, "Renderer (SDL) : Font not bound")
+    assert(bound.ttf_font_bound != nil, "Renderer (SDL) : Font not bound")
 
     // Texture
-    surface := sdl2_tff.RenderText_Solid(bound.bound_font,text, bound.draw_color_sdl)
+    surface := sdl2_tff.RenderText_Solid(bound.ttf_font_bound,text, bound.draw_color_sdl)
     texture := sdl2.CreateTextureFromSurface(bound.renderer,surface)
 
-    // Render
+    // Draw
     dest_rect := sdl2.Rect{ position.x, position.y, surface.w, surface.h}
     sdl2.RenderCopy(bound.renderer, texture,nil,&dest_rect)
   
@@ -467,22 +438,23 @@ draw_text_tff_dynamic :: proc(text : cstring, position : [2]i32)
 }
 
 /*------------------------------------------------------------------------------
-TOR : SDL2->Renderer (Main)
+TOR : SDL2->Modes
 ------------------------------------------------------------------------------*/
 
-set_to_defaults :: proc()
+set_blend_mode :: proc(blend_mode : c.int)
 {
-    // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
+    sdl2.SetRenderDrawBlendMode(bound.renderer,sdl2.BlendMode(blend_mode))
 
-    // Renderer
-    set_clear_color_rgba({100,149,237,255})
-    set_draw_color_rgba({255,255,255,255})
-
-    // SDL
-    sdl2.RenderSetScale(bound.renderer,1,1)
-    sdl2.SetRenderDrawBlendMode(bound.renderer,sdl2.BlendMode.BLEND)
+    if (bound.sprite_bound != nil)
+    {
+        sdl2.SetTextureBlendMode(bound.sprite_bound,sdl2.BlendMode(blend_mode))
+    }
 }
+
+/*------------------------------------------------------------------------------
+TOR : SDL2->Renderer (Main)
+------------------------------------------------------------------------------*/
 
 bind :: proc(id : u8)
 {
@@ -518,7 +490,7 @@ create :: proc(sdl2_window : rawptr, bind : bool) -> u8
             id = u8(i)
             
             // Create renderer
-            cache[id] = new (renderer)
+            cache[id] = new (renderer2d)
             cache[id].renderer = sdl2.CreateRenderer((^sdl2.Window)(sdl2_window),-1,sdl2.RENDERER_ACCELERATED)
                         
             // Bind
@@ -526,6 +498,13 @@ create :: proc(sdl2_window : rawptr, bind : bool) -> u8
             {
                 bound = cache[id]
             }
+
+            
+            // Defaults
+            set_clear_color_rgba({100,149,237,255})
+            set_draw_color_rgba({255,255,255,255})
+            sdl2.RenderSetScale(cache[id].renderer,1,1)
+            sdl2.SetRenderDrawBlendMode(cache[id].renderer,sdl2.BlendMode.BLEND)
 
             // Return
             return id
@@ -549,7 +528,7 @@ render_present :: proc ()
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     
-    // Render Present
+    // Draw Present
     sdl2.SetRenderDrawColor(bound.renderer,bound.draw_color.r,bound.draw_color.g,bound.draw_color.b,bound.draw_color.a)
     sdl2.RenderPresent(bound.renderer)
 }

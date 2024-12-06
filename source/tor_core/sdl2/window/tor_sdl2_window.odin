@@ -2,7 +2,9 @@ package tor_core_sdl2_window
 import sdl2 "vendor:sdl2"
 
 // Window cache
+@(private)
 cache                                           : map[u8] ^sdl2.Window
+@(private)
 bound                                           : ^sdl2.Window
 
 /*------------------------------------------------------------------------------
@@ -20,13 +22,13 @@ get_size :: proc() -> ([2]i32)
     return { x ,y }
 }
 
-set_title :: proc(title:string)
+set_title :: proc(title : cstring)
 {
     // Validate
     assert(bound != nil, "Window (SDL) : Window not bound")
     
     // Set title
-    sdl2.SetWindowTitle(bound ,"FIX")
+    sdl2.SetWindowTitle(bound ,"FDSF")
 }
 
 set_resizable :: proc(bEnabled : bool)
