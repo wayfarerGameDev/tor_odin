@@ -7,14 +7,17 @@ import "../tor_core/sdl2/window"
 import "../tor_core/sdl2/input"
 import "../tor_core/sdl2/renderer2d"
 
-ENTITY_COUNT                                                   :: 100000
-ENTITY_DATA_CHUNCK                                             :: 4
-
 _window                                                        : u8
 _renderer                                                      : u8
 _sprite                                                        : u8
 _font                                                          : u8
-_entity_data                                                   : [ENTITY_COUNT * ENTITY_DATA_CHUNCK]f64
+
+ENTITY_COUNT                                                   :: 100000
+_entity_source_rects                                           : [ENTITY_COUNT]renderer2d.SourceRect
+_entity_destination_rects                                      : [ENTITY_COUNT]renderer2d.DestinationRect
+
+_render_interval_target                                        := 2
+_render_interval_time                                          := 0
 
 /*------------------------------------------------------------------------------
 Game
@@ -24,7 +27,7 @@ main :: proc()
 {
     // Create app
     app.init()
-    app.bind_Events(start,end,update,render,resized)
+    app.bind_Events(start,end,run,run_fixed,resized)
     app.run()
 }
 
@@ -47,10 +50,12 @@ start :: proc()
     // Entities
     for i:= 0; i < ENTITY_COUNT; i+= 1
     {
-        _entity_data[i * ENTITY_DATA_CHUNCK] = (f64)(rand.float32_range(50,1204))
-        _entity_data[i * ENTITY_DATA_CHUNCK + 1] = (f64)(rand.float32_range(50,720))
-        _entity_data[i * ENTITY_DATA_CHUNCK + 2] = 32
-        _entity_data[i * ENTITY_DATA_CHUNCK + 3] = 32
+        _entity_source_rects[i].w = 20
+        _entity_source_rects[i].h = 20
+        _entity_destination_rects[i].x = rand.float32_range(50,1204)
+        _entity_destination_rects[i].y = rand.float32_range(50,720)
+        _entity_destination_rects[i].w = rand.float32_range(32,32)
+        _entity_destination_rects[i].h = rand.float32_range(32,32)
     }
 }
 
@@ -58,41 +63,35 @@ end :: proc()
 {
 }
 
-update :: proc()
+run_fixed :: proc()
 {
-    delta_time := app.time.delta_time
     
-    input.update();
-    window.set_title(app.time.fps_as_cstring)
-    //if (input.get_key_state(input.Keycode.W,1))
-    {
-        // Entities
-        for i:= 0; i < ENTITY_COUNT; i+=1
-        {
-            _entity_data[i * ENTITY_DATA_CHUNCK] += 1 * delta_time
-            _entity_data[i * ENTITY_DATA_CHUNCK + 1] += 1 * delta_time
-        }
-    }
 }
 
-render :: proc()
+run :: proc()
 {
-    // World space
-    renderer2d.set_viewport(0)
-    renderer2d.set_viewport_position(0,{0,0})
+    // Control how often we render
+    //_render_interval_time += 1
+    //if (_render_interval_time < _render_interval_target) { return }
+    //_render_interval_time = 0
 
-    // Entities
+    // Debug fps
+    window.set_title(app.time.fps_as_cstring)
+
+    delta_time := f32(app.time.delta_time)
+    speed := 3 * delta_time // Calculate once to save alot of fps
+
+    // Update entities
+    source_rect := renderer2d.SourceRect {0,0,32,32}
     for i:= 0; i < ENTITY_COUNT ; i+=1
     {
-       // renderer2d.draw_sprite_atlas_f64( {0,0,20,20}, {_entity_data[i * ENTITY_DATA_CHUNCK],_entity_data[i * ENTITY_DATA_CHUNCK + 1],_entity_data[i * ENTITY_DATA_CHUNCK + 2], _entity_data[i * ENTITY_DATA_CHUNCK + 3]})
+        // Move
+        _entity_destination_rects[i].x += speed
+        _entity_destination_rects[i].y += speed
+
+        // Draw
+        renderer2d.draw_sprite_atlas_rect(&source_rect,&_entity_destination_rects[i])
     }
-
-    // Screenspace
-    renderer2d.set_viewport(1)
-
-    // UI
-    renderer2d.bind_text_tff_font(_font)
-    renderer2d.draw_text_tff_static(app.time.fps_as_cstring, {0, 0})
       
     // Final
     renderer2d.render_present()

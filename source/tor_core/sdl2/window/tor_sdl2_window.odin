@@ -28,7 +28,7 @@ set_title :: proc(title : cstring)
     assert(bound != nil, "Window (SDL) : Window not bound")
     
     // Set title
-    sdl2.SetWindowTitle(bound ,"FDSF")
+    sdl2.SetWindowTitle(bound ,title)
 }
 
 set_resizable :: proc(bEnabled : bool)

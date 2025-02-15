@@ -5,13 +5,17 @@ import sdl2_tff "vendor:sdl2/ttf"
 import "core:math/rand"
 import "core:c"
 
+// Types
+SourceRect                                                :: sdl2.Rect
+DestinationRect                                           :: sdl2.FRect
+
 // Blendmode
-BLENDMODE_NONE                                           :: 0x00000000
-BLENDMODE_ALPHA                                          :: 0x00000001
-BLENDMODE_ADD                                            :: 0x00000002
-BLENDMODE_MODULATE                                       :: 0x00000004
-BLENDMODE_MULTIPLY                                       :: 0x00000008
-BLENDMODE_INVALID                                        :: 0x7FFFFFFF
+BLENDMODE_NONE                                            :: 0x00000000
+BLENDMODE_ALPHA                                           :: 0x00000001
+BLENDMODE_ADD                                             :: 0x00000002
+BLENDMODE_MODULATE                                        :: 0x00000004
+BLENDMODE_MULTIPLY                                        :: 0x00000008
+BLENDMODE_INVALID                                         :: 0x7FFFFFFF
 
 // State
 @(private)
@@ -60,15 +64,6 @@ renderer2d                                                :: struct
     ttf_font_cache                                        : map[u8] ^sdl2_tff.Font,
     ttf_text_static_sprite_cache                          : map[text_tff_static_key] text_tff_static_value
 }
-
-// Draw
-@(private)
-draw_destination_rect                                     : sdl2.Rect
-@(private)
-draw_destination_rect_f                                   : sdl2.FRect
-@(private)
-draw_source_rect                                          : sdl2.Rect
-
 
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (Color)
@@ -253,74 +248,46 @@ query_sprite_size :: proc(sprite_id : u8) -> [2]i32
 TOR : SDL2->Renderer (Sprite : Draw)
 ------------------------------------------------------------------------------*/
 
-draw_sprite_i32 :: proc(destination_rect : [4]i32)
+draw_sprite_rect :: proc(destination : ^DestinationRect)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
     // Draw
-    draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
-    sdl2.RenderCopy(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect)
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,destination)
 }
 
-draw_sprite_f32 :: proc(destination_rect : [4]f32)
+draw_sprite_vector :: proc(destination : [4]f32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
     // Draw
-    draw_destination_rect_f = sdl2.FRect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
-    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect_f)
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,&{destination.x,destination.y,destination.z,destination.w})
 }
 
-draw_sprite_f64 :: proc(destination_rect : [4]f64)
+draw_sprite_atlas_rect :: proc(source : ^SourceRect, destination : ^DestinationRect)
+{  
+    // Validate
+    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
+    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
+
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,source,destination)
+}
+
+
+draw_sprite_atlas_vector :: proc(source : ^[4]f32, destination : ^[4]f32)
 {   
     // Validate
     assert(bound != nil, "Renderer (SDL) : Renderer not bound")
     assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
  
     // Draw
-    draw_destination_rect_f = sdl2.FRect {(f32)(destination_rect.x),(f32)(destination_rect.y),(f32)(destination_rect.z),(f32)(destination_rect.w)}
-    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,nil,&draw_destination_rect_f)
+    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,&{i32(source.x),i32(source.y),i32(source.z),i32(source.w)},&{f32(destination.x),f32(destination.y),f32(destination.z),f32(destination.w)})
 }
 
-draw_sprite_atlas_i32 :: proc(source_rect : [4]i32, destination_rect : [4]i32)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Draw
-    draw_destination_rect = sdl2.Rect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
-    draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
-    sdl2.RenderCopy(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect)
-}
-
-draw_sprite_atlas_f32 :: proc(source_rect : [4]i32, destination_rect : [4]f32)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
- 
-    // Draw
-    draw_destination_rect_f = sdl2.FRect {destination_rect.x,destination_rect.y,destination_rect.z,destination_rect.w}
-    draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
-    sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect_f)
-}
-
-draw_sprite_atlas_f64 :: proc(source_rect : [4]i32, destination_rect : [4]f64)
-{   
-    // Validate
-    assert(bound != nil, "Renderer (SDL) : Renderer not bound")
-    assert(bound.sprite_bound != nil, "Renderer (SDL) : Texture not bound")
- 
-     // Draw
-     draw_destination_rect_f = sdl2.FRect {(f32)(destination_rect.x),(f32)(destination_rect.y),(f32)(destination_rect.z),(f32)(destination_rect.w)}
-     draw_source_rect = sdl2.Rect {source_rect.x,source_rect.y,source_rect.z,source_rect.w}
-     sdl2.RenderCopyF(bound.renderer,bound.sprite_bound,&draw_source_rect,&draw_destination_rect_f)
-}
 
 /*------------------------------------------------------------------------------
 TOR : SDL2->Renderer (Font tff)
@@ -467,6 +434,11 @@ free :: proc(id : u8)
     // delete 
 }
 
+get_bound_rawptr :: proc(id : u8) -> rawptr
+{
+    return bound
+}
+
 get_rawptr :: proc(id : u8) -> rawptr
 {
     return cache[id]
@@ -479,6 +451,7 @@ create :: proc(sdl2_window : rawptr, bind : bool) -> u8
      
     // Enable batching
     sdl2.SetHint(sdl2.HINT_RENDER_BATCHING,"1")
+    //sdl2.SetHint(sdl2.HINT_RENDER_VSYNC,"2")
 
     // Create renderer
     id := u8(0)
